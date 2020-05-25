@@ -16,16 +16,12 @@ namespace fc::primitives::tipset {
    */
   struct TipsetKey {
     std::vector<CID> cids;
+    std::vector<uint8_t> bytes;
     std::size_t hash{};
 
     TipsetKey() = default;
     TipsetKey(const TipsetKey &) = default;
     TipsetKey(TipsetKey &&) = default;
-    TipsetKey(std::vector<CID> cids);
-    TipsetKey(std::vector<CID> cids, std::size_t hash);
-
-    /** @brief calculates hash value */
-    outcome::result<void> initializeHash();
 
     /** @brief creates TipsetKey and calculates hash */
     static outcome::result<TipsetKey> create(std::vector<CID> cids);
@@ -44,6 +40,7 @@ namespace fc::primitives::tipset {
     /** @brief assigns TipsetKey */
     TipsetKey &operator=(const TipsetKey &other) {
       cids = other.cids;
+      bytes = other.bytes;
       hash = other.hash;
       return *this;
     }
@@ -51,6 +48,7 @@ namespace fc::primitives::tipset {
     /** @brief assigns TipsetKey */
     TipsetKey &operator=(TipsetKey &&other) {
       cids = std::move(other.cids);
+      bytes = std::move(other.bytes);
       hash = other.hash;
       return *this;
     }

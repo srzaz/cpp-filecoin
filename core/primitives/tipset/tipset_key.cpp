@@ -10,6 +10,7 @@ namespace fc::primitives::tipset {
     using ByteArray = std::vector<uint8_t>;
     outcome::result<ByteArray> cidVectorToBytes(const std::vector<CID> &cids) {
       ByteArray buffer{};
+      buffer.reserve(cids.size() * 36);
       for (auto &c : cids) {
         OUTCOME_TRY(v, c.toBytes());
         buffer.insert(buffer.end(), v.begin(), v.end());
@@ -40,24 +41,16 @@ namespace fc::primitives::tipset {
   }
 
   outcome::result<std::vector<uint8_t>> TipsetKey::toBytes() const {
+    if (!bytes.empty()) {
+      return bytes;
+    }
     return cidVectorToBytes(cids);
-  }
-
-  TipsetKey::TipsetKey(std::vector<CID> cids, std::size_t hash)
-      : cids{cids}, hash{hash} {}
-
-  TipsetKey::TipsetKey(std::vector<CID> cids) : cids{cids}, hash{0} {}
-
-  outcome::result<void> TipsetKey::initializeHash() {
-    OUTCOME_TRY(bytes, cidVectorToBytes(cids));
-    hash = boost::hash_range(bytes.begin(), bytes.end());
-    return outcome::success();
   }
 
   outcome::result<TipsetKey> TipsetKey::create(std::vector<CID> cids) {
     OUTCOME_TRY(bytes, cidVectorToBytes(cids));
     auto hash = boost::hash_range(bytes.begin(), bytes.end());
-    return TipsetKey(std::move(cids), hash);
+    return TipsetKey{ std::move(cids), std::move(bytes), hash };
   }
 
 }  // namespace fc::primitives::tipset
