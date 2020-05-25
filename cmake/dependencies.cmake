@@ -7,8 +7,8 @@ find_package(GTest CONFIG REQUIRED)
 find_package(GMock CONFIG REQUIRED)
 
 # https://docs.hunter.sh/en/latest/packages/pkg/Boost.html
-hunter_add_package(Boost COMPONENTS date_time filesystem random)
-find_package(Boost CONFIG REQUIRED date_time filesystem random)
+hunter_add_package(Boost COMPONENTS date_time filesystem random program_options)
+find_package(Boost CONFIG REQUIRED date_time filesystem random program_options)
 
 # https://docs.hunter.sh/en/latest/packages/pkg/Microsoft.GSL.html
 hunter_add_package(Microsoft.GSL)
@@ -53,3 +53,7 @@ find_package(cppcodec CONFIG REQUIRED)
 # http://rapidjson.org
 hunter_add_package(RapidJSON)
 find_package(RapidJSON CONFIG REQUIRED)
+
+# https://github.com/soramitsu/libp2p-sqlite-modern-cpp/tree/hunter
+hunter_add_package(SQLiteModernCpp)
+find_package(SQLiteModernCpp CONFIG REQUIRED)
