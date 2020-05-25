@@ -56,7 +56,10 @@ namespace fc::storage::blockchain {
   }
 
   outcome::result<Tipset> ChainStoreImpl::loadTipset(
-      const TipsetKey &key) const {
+      const std::vector<CID> &cids) const {
+    // TODO change keys behavior
+    OUTCOME_TRY(key, TipsetKey::create(cids));
+
     // check cache first
     if (auto it = tipsets_cache_.find(key); it != tipsets_cache_.end()) {
       return it->second;
@@ -82,8 +85,8 @@ namespace fc::storage::blockchain {
     auto &&head_key = chain_data_store_->get(kChainHeadKey);
     if (head_key) {
       OUTCOME_TRY(cids, decodeCidVector(head_key.value()));
-      OUTCOME_TRY(ts_key, TipsetKey::create(std::move(cids)));
-      OUTCOME_TRY(tipset, loadTipset(ts_key));
+      // OUTCOME_TRY(ts_key, TipsetKey::create(std::move(cids)));
+      OUTCOME_TRY(tipset, loadTipset(std::move(cids)));
       heaviest_tipset_.reset(tipset);
     } else {
       logger_->warn("no previous head tipset found, error = {}",
@@ -118,7 +121,7 @@ namespace fc::storage::blockchain {
       return true;
     }
 
-    OUTCOME_TRY(loadTipset(key));
+    OUTCOME_TRY(loadTipset(key.cids));
     return true;
   }
 
@@ -271,12 +274,12 @@ namespace fc::storage::blockchain {
       if (l.height > r.height) {
         path.revert_chain.emplace_back(l);
         OUTCOME_TRY(key, l.getParents());
-        OUTCOME_TRY(ts, loadTipset(key));
+        OUTCOME_TRY(ts, loadTipset(key.cids));
         l = std::move(ts);
       } else {
         path.apply_chain.emplace_front(r);
         OUTCOME_TRY(key, r.getParents());
-        OUTCOME_TRY(ts, loadTipset(key));
+        OUTCOME_TRY(ts, loadTipset(key.cids));
         r = std::move(ts);
       }
     }
