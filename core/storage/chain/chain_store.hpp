@@ -100,7 +100,8 @@ namespace fc::storage::blockchain {
     inline auto genesisTipsetKey() const {
       OUTCOME_EXCEPT(genesis, getGenesis());
       OUTCOME_EXCEPT(genesis_cid, primitives::cid::getCidOfCbor(genesis));
-      return TipsetKey::create({std::move(genesis_cid)});
+      OUTCOME_EXCEPT(key, TipsetKey::create({std::move(genesis_cid)}));
+      return key;
     }
   };
 

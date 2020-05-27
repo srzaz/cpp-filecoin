@@ -67,7 +67,6 @@ namespace fc::node {
     auto injector = libp2p::injector::makeGossipInjector<
         boost::di::extension::shared_config>(
         boost::di::bind<clock::UTCClock>.template to<clock::UTCClockImpl>(),
-        boost::di::bind<clock::ChainEpochClock>.template to<clock::ChainEpochClockImpl>(),
         libp2p::injector::useGossipConfig(config.gossip_config));
 
     o.io_context = injector.create<std::shared_ptr<boost::asio::io_context>>();
@@ -84,8 +83,9 @@ namespace fc::node {
 
     o.utc_clock = injector.create<std::shared_ptr<clock::UTCClock>>();
 
+    // TODO: genesis time
     o.chain_epoch_clock =
-        injector.create<std::shared_ptr<clock::ChainEpochClock>>();
+        std::make_shared<clock::ChainEpochClockImpl>(clock::Time{{}});
 
     // TODO - switch on real storage after debugging all the stuff
     o.ipfs_datastore = std::make_shared<storage::ipfs::InMemoryDatastore>();
