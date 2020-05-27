@@ -51,7 +51,12 @@ namespace fc::storage::blockchain {
      * @brief loads tipset from storage
      * @param key tipset key
      */
-    virtual outcome::result<Tipset> loadTipset(const TipsetKey &key) const = 0;
+    outcome::result<Tipset> loadTipset(const TipsetKey &key) {
+      return loadTipset(key.cids);
+    }
+
+    virtual outcome::result<Tipset> loadTipset(
+        const std::vector<CID> &cids) const = 0;
 
     /** @brief adds block to storage */
     virtual outcome::result<void> addBlock(const BlockHeader &block) = 0;
@@ -95,7 +100,7 @@ namespace fc::storage::blockchain {
     inline auto genesisTipsetKey() const {
       OUTCOME_EXCEPT(genesis, getGenesis());
       OUTCOME_EXCEPT(genesis_cid, primitives::cid::getCidOfCbor(genesis));
-      return TipsetKey{{std::move(genesis_cid)}};
+      return TipsetKey::create({std::move(genesis_cid)});
     }
   };
 

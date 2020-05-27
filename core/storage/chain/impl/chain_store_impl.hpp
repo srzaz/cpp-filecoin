@@ -52,7 +52,8 @@ namespace fc::storage::blockchain {
     /** @brief loads data from block storage and initializes storage */
     outcome::result<void> initialize();
 
-    outcome::result<Tipset> loadTipset(const TipsetKey &key) const override;
+    outcome::result<Tipset> loadTipset(
+        const std::vector<CID> &cids) const override;
 
     outcome::result<void> addBlock(const BlockHeader &block) override;
 
