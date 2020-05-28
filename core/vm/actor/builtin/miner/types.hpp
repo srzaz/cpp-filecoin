@@ -34,7 +34,6 @@ namespace fc::vm::actor::builtin::miner {
   using primitives::sector::OnChainPoStVerifyInfo;
   using primitives::sector::Proof;
   using primitives::sector::RegisteredProof;
-  using Ipld = storage::ipfs::IpfsDatastore;
 
   using PeerId = std::vector<uint8_t>;
 
@@ -66,8 +65,13 @@ namespace fc::vm::actor::builtin::miner {
     /// Sector expiration
     ChainEpoch expiration;
   };
-  CBOR_TUPLE(
-      SectorPreCommitInfo, registered_proof, sector, sealed_cid, seal_epoch, deal_ids, expiration)
+  CBOR_TUPLE(SectorPreCommitInfo,
+             registered_proof,
+             sector,
+             sealed_cid,
+             seal_epoch,
+             deal_ids,
+             expiration)
 
   struct SectorPreCommitOnChainInfo {
     SectorPreCommitInfo info;

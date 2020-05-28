@@ -11,7 +11,6 @@
 namespace fc::adt {
   using storage::hamt::Hamt;
   using storage::hamt::kDefaultBitWidth;
-  using Ipld = storage::ipfs::IpfsDatastore;
 
   struct StringKeyer {
     using Key = std::string;
@@ -34,9 +33,10 @@ namespace fc::adt {
     using Visitor =
         std::function<outcome::result<void>(const Key &, const Value &)>;
 
-    Map() : hamt{nullptr, bit_width} {}
+    Map(IpldPtr ipld = nullptr) : hamt{ipld, bit_width} {}
 
-    explicit Map(const CID &root) : hamt{nullptr, root, bit_width} {}
+    Map(const CID &root, IpldPtr ipld = nullptr)
+        : hamt{ipld, root, bit_width} {}
 
     void load(std::shared_ptr<Ipld> ipld) {
       hamt.setIpld(ipld);

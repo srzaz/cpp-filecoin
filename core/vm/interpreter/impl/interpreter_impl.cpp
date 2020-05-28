@@ -11,6 +11,7 @@
 #include "vm/actor/impl/invoker_impl.hpp"
 #include "vm/runtime/gas_cost.hpp"
 #include "vm/runtime/impl/runtime_impl.hpp"
+#include "vm/state/impl/state_tree_impl.hpp"
 
 OUTCOME_CPP_DEFINE_CATEGORY(fc::vm::interpreter, InterpreterError, e) {
   using E = fc::vm::interpreter::InterpreterError;
@@ -44,7 +45,7 @@ namespace fc::vm::interpreter {
   using runtime::RuntimeImpl;
 
   outcome::result<Result> InterpreterImpl::interpret(
-      const std::shared_ptr<IpfsDatastore> &ipld, const Tipset &tipset) const {
+      const IpldPtr &ipld, const Tipset &tipset) const {
     if (tipset.height == 0) {
       return Result{
           tipset.getParentStateRoot(),
@@ -56,8 +57,8 @@ namespace fc::vm::interpreter {
       return InterpreterError::DUPLICATE_MINER;
     }
 
-    auto state_tree =
-        std::make_shared<StateTreeImpl>(ipld, tipset.getParentStateRoot());
+    auto state_tree = std::make_shared<state::StateTreeImpl>(
+        ipld, tipset.getParentStateRoot());
     // TODO(turuslan): FIL-146 randomness from tipset
     std::shared_ptr<RandomnessProvider> randomness;
     auto env = std::make_shared<Env>(
@@ -132,7 +133,7 @@ namespace fc::vm::interpreter {
 
   bool InterpreterImpl::hasDuplicateMiners(
       const std::vector<BlockHeader> &blocks) const {
-    std::set<Address> set;
+    std::set<primitives::address::Address> set;
     for (auto &block : blocks) {
       if (!set.insert(block.miner).second) {
         return true;

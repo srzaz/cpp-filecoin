@@ -6,21 +6,17 @@
 #ifndef CPP_FILECOIN_CORE_VM_ACTOR_INIT_ACTOR_HPP
 #define CPP_FILECOIN_CORE_VM_ACTOR_INIT_ACTOR_HPP
 
-#include "codec/cbor/streams_annotation.hpp"
-#include "storage/ipfs/datastore.hpp"
+#include "adt/address_key.hpp"
+#include "adt/map.hpp"
 #include "vm/actor/actor_method.hpp"
 
 namespace fc::vm::actor::builtin::init {
-
-  using storage::ipfs::IpfsDatastore;
-
   /// Init actor state
   struct InitActorState {
     /// Allocate new id address
-    outcome::result<Address> addActor(std::shared_ptr<IpfsDatastore> store,
-                                      const Address &address);
+    outcome::result<Address> addActor(const Address &address);
 
-    CID address_map{};
+    adt::Map<uint64_t, adt::AddressKeyer> address_map;
     uint64_t next_id{};
     std::string network_name;
   };

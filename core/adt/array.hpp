@@ -10,7 +10,6 @@
 
 namespace fc::adt {
   using storage::amt::Amt;
-  using Ipld = storage::ipfs::IpfsDatastore;
 
   /// Strongly typed amt wrapper
   template <typename Value>

@@ -16,7 +16,7 @@ namespace fc::primitives::tipset {
    */
   struct TipsetKey {
     std::vector<CID> cids;
-    std::vector<uint8_t> bytes;
+    std::vector<uint8_t> bytes{};
     std::size_t hash{};
 
     TipsetKey() = default;

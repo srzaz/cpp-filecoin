@@ -32,7 +32,6 @@ namespace fc::primitives::block {
   using primitives::ticket::Ticket;
   using vm::message::SignedMessage;
   using vm::message::UnsignedMessage;
-  using Ipld = storage::ipfs::IpfsDatastore;
 
   struct ElectionProof {
     Buffer vrf_proof;

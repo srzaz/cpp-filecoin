@@ -34,7 +34,6 @@ namespace fc::vm::actor::builtin::storage_power {
   using primitives::TokenAmount;
   using primitives::address::Address;
   using storage::ipfs::IpfsDatastore;
-  using Ipld = storage::ipfs::IpfsDatastore;
   using ChainEpochKeyer = adt::UvarintKeyer;
 
   // Minimum power of an individual miner to participate in leader election

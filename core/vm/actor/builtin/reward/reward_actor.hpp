@@ -24,7 +24,6 @@ namespace fc::vm::actor::builtin::reward {
   using adt::AddressKeyer;
   using power::Power;
   using primitives::TokenAmount;
-  using Ipld = storage::ipfs::IpfsDatastore;
 
   enum class VestingFunction : uint64_t {
     NONE = 0,

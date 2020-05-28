@@ -30,7 +30,6 @@ namespace fc::vm::actor::builtin::market {
   using primitives::TokenAmount;
   using primitives::piece::PaddedPieceSize;
   using primitives::sector::RegisteredProof;
-  using Ipld = storage::ipfs::IpfsDatastore;
 
   struct DealProposal {
     inline TokenAmount clientBalanceRequirement() const {

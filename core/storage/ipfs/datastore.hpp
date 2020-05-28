@@ -74,4 +74,9 @@ namespace fc::storage::ipfs {
   };
 }  // namespace fc::storage::ipfs
 
+namespace fc {
+  using Ipld = storage::ipfs::IpfsDatastore;
+  using IpldPtr = std::shared_ptr<Ipld>;
+}  // namespace fc
+
 #endif  // CPP_FILECOIN_CORE_STORAGE_IPFS_DATASTORE_HPP

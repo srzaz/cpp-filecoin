@@ -248,7 +248,9 @@ namespace fc::api {
         // TODO(turuslan): FIL-165 implement method
         .MarketEnsureAvailable = {},
         .MinerCreateBlock = {[=](auto &t) -> outcome::result<BlockMsg> {
-          OUTCOME_TRY(context, tipsetContext(t.parents, true));
+          OUTCOME_TRY(
+              context,
+              tipsetContext(TipsetKey::create(t.parents).value(), true));
           OUTCOME_TRY(miner_state, context.minerState(t.miner));
           OUTCOME_TRY(block,
                       blockchain::production::generate(ipld, std::move(t)));

@@ -19,7 +19,6 @@ namespace fc::api {
   using crypto::bls::BlsProvider;
   using storage::blockchain::ChainStore;
   using storage::keystore::KeyStore;
-  using Ipld = storage::ipfs::IpfsDatastore;
   using Logger = common::Logger;
 
   outcome::result<IpldObject> getNode(std::shared_ptr<Ipld> ipld,
