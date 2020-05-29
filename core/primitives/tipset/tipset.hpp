@@ -79,6 +79,7 @@ namespace fc::primitives::tipset {
     bool contains(const CID &cid) const;
 
     std::vector<CID> cids;                 ///< cids
+    // TODO TipsetKey key;
     std::vector<block::BlockHeader> blks;  ///< block headers
     uint64_t height{};                     ///< height
   };

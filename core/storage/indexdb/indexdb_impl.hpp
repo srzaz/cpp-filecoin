@@ -33,12 +33,6 @@ namespace fc::storage::indexdb {
    public:
     explicit IndexDbImpl(const std::string &db_filename);
 
-    Tx beginTx() override;
-
-    void commitTx() override;
-
-    void rollbackTx() override;
-
     outcome::result<std::vector<TipsetInfo>> getRoots() override;
 
     outcome::result<std::vector<TipsetInfo>> getHeads() override;
@@ -54,13 +48,45 @@ namespace fc::storage::indexdb {
                                       uint64_t new_head_height,
                                       uint64_t child_branch_id) override;
 
+    outcome::result<void> newTipset(const TipsetHash &tipset_hash,
+                                            const std::vector<CID> &block_cids,
+                                            const BigInt &weight,
+                                            uint64_t height,
+                                            uint64_t branch_id) override;
+
+    outcome::result<void> newObject(const CID &cid,
+                                            ObjectType type) override;
+
+    outcome::result<void> blockHeaderSynced(
+        const CID &block_cid,
+        const CID &msg_cid,
+        const std::vector<CID> &bls_msgs,
+        const std::vector<CID> &secp_msgs) override;
+
+    outcome::result<void> objectSynced(const CID &cid) override;
+
     outcome::result<SyncState> getTipsetSyncState(
         const TipsetHash &tipset_hash) override;
 
-    outcome::result<void> updateTipsetSyncState(
+    outcome::result<SyncState> updateTipsetSyncState(
         const TipsetHash &tipset_hash) override;
 
    private:
+    /// RAII tx helper
+    class Tx {
+     public:
+      explicit Tx(IndexDbImpl &db);
+      void commit();
+      void rollback();
+      ~Tx();
+
+     private:
+      IndexDbImpl &db_;
+      bool done_ = false;
+    };
+
+    [[nodiscard]] Tx beginTx();
+
     void init();
 
     outcome::result<std::vector<TipsetInfo>> getRootsOrHeads(
@@ -89,17 +115,17 @@ namespace fc::storage::indexdb {
 
     outcome::result<void> getBranches(const GetBranchFn &cb);
 
-    outcome::result<void> insertBlock(const Blob &cid,
-                                      const Blob &msg_cid,
-                                      int type,
-                                      int sync_state,
-                                      int ref_count);
-
-    outcome::result<void> insertTipset(const Blob &tipset_hash,
-                                       int sync_state,
-                                       uint64_t branch_id,
-                                       const std::string &weight,
-                                       uint64_t height);
+//    outcome::result<void> insertBlock(const Blob &cid,
+//                                      const Blob &msg_cid,
+//                                      int type,
+//                                      int sync_state,
+//                                      int ref_count);
+//
+//    outcome::result<void> insertTipset(const Blob &tipset_hash,
+//                                       int sync_state,
+//                                       uint64_t branch_id,
+//                                       const std::string &weight,
+//                                       uint64_t height);
 
     outcome::result<void> insertTipsetBlock(const Blob &tipset_hash,
                                             const Blob &cid,
@@ -107,8 +133,11 @@ namespace fc::storage::indexdb {
 
     outcome::result<void> insertLink(const Blob &left, const Blob &right);
 
-    outcome::result<void> updateBlockSyncState(const Blob &cid,
-                                               int new_sync_state);
+    outcome::result<void> linkBranches(uint64_t parent, uint64_t child);
+
+    outcome::result<void> indexBlockMessages(const Blob& block_cid_bytes,
+                                             const std::vector<CID> &msgs,
+                                             ObjectType msg_type);
 
     libp2p::storage::SQLite db_;
     StatementHandle get_roots_{};
@@ -123,17 +152,23 @@ namespace fc::storage::indexdb {
     StatementHandle get_branches_{};
     StatementHandle get_branch_sync_state_{};
     StatementHandle get_tipset_sync_state_{};
-    StatementHandle insert_block_{};
+    StatementHandle insert_cid_{};
     StatementHandle insert_tipset_{};
     StatementHandle insert_tipset_block_{};
+    StatementHandle insert_block_msg_{};
     StatementHandle insert_link_{};
-    StatementHandle update_block_sync_state_{};
+    StatementHandle block_header_synced_{};
+    StatementHandle update_object_sync_state_{};
     StatementHandle update_tipset_sync_state_{};
     StatementHandle merge_branch_to_head_{};
     StatementHandle link_branches_{};
     StatementHandle unlink_branches_{};
     StatementHandle rename_branch_from_height_{};
     StatementHandle rename_branch_links_{};
+
+    class Test;
+    friend Test;
+    friend Tx;
   };
 
 }  // namespace fc::storage::indexdb

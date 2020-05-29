@@ -12,14 +12,14 @@
   if (!res) {                            \
     return Error::INDEXDB_EXECUTE_ERROR; \
   }                                      \
-  return outcome::success();
+  return outcome::success()
 
 #define RETURN_UPDATE_ONE_ROW(expr)      \
   int rows_affected = (expr);            \
   if (rows_affected != 1) {              \
     return Error::INDEXDB_EXECUTE_ERROR; \
   }                                      \
-  return outcome::success();
+  return outcome::success()
 
 namespace fc::storage::indexdb {
 
@@ -27,6 +27,14 @@ namespace fc::storage::indexdb {
     auto log() {
       static common::Logger logger = common::createLogger(kLogName);
       return logger.get();
+    }
+
+    std::string toString(const CID& cid) {
+      auto res = cid.toString();
+      if (res) {
+        return res.value();
+      }
+      return "invalid_cid";
     }
 
     bool addTipsetInfo(std::vector<TipsetInfo> &tipsets,
@@ -64,20 +72,26 @@ namespace fc::storage::indexdb {
 
   }  // namespace
 
-  Tx::Tx(IndexDb &db) : db_(db) {}
-
-  void Tx::commit() {
-    db_.commitTx();
-    done_ = true;
+  IndexDbImpl::Tx::Tx(IndexDbImpl &db) : db_(db) {
+    db_.db_ << "begin";
   }
 
-  void Tx::rollback() {
-    db_.rollbackTx();
-    done_ = true;
+  void IndexDbImpl::Tx::commit() {
+    if (!done_) {
+      done_ = true;
+      db_.db_ << "commit";
+    }
   }
 
-  Tx::~Tx() {
-    if (!done_) db_.rollbackTx();
+  void IndexDbImpl::Tx::rollback() {
+    if (!done_) {
+      done_ = true;
+      db_.db_ << "rollback";
+    }
+  }
+
+  IndexDbImpl::Tx::~Tx() {
+    rollback();
   }
 
   IndexDbImpl::IndexDbImpl(const std::string &db_filename)
@@ -85,17 +99,8 @@ namespace fc::storage::indexdb {
     init();
   }
 
-  Tx IndexDbImpl::beginTx() {
-    db_ << "begin";
+  IndexDbImpl::Tx IndexDbImpl::beginTx() {
     return Tx(*this);
-  }
-
-  void IndexDbImpl::commitTx() {
-    db_ << "commit";
-  }
-
-  void IndexDbImpl::rollbackTx() {
-    db_ << "rollback";
   }
 
   outcome::result<std::vector<TipsetInfo>> IndexDbImpl::getRoots() {
@@ -183,7 +188,7 @@ namespace fc::storage::indexdb {
 
   outcome::result<void> IndexDbImpl::mergeBranchToHead(
       uint64_t parent_branch_id, uint64_t branch_id) {
-    beginTx();
+    auto tx = beginTx();
 
     int rows = db_.execCommand(unlink_branches_, parent_branch_id, branch_id);
 
@@ -203,7 +208,7 @@ namespace fc::storage::indexdb {
       return Error::INDEXDB_EXECUTE_ERROR;
     }
 
-    commitTx();
+    tx.commit();
     return outcome::success();
   }
 
@@ -214,7 +219,7 @@ namespace fc::storage::indexdb {
       return Error::INDEXDB_INVALID_ARGUMENT;
     }
 
-    beginTx();
+    auto tx = beginTx();
 
     int rows = db_.execCommand(rename_branch_from_height_,
                                child_branch_id,
@@ -236,8 +241,154 @@ namespace fc::storage::indexdb {
       return Error::INDEXDB_EXECUTE_ERROR;
     }
 
-    commitTx();
+    tx.commit();
     return outcome::success();
+  }
+
+  outcome::result<void> IndexDbImpl::newTipset(
+      const TipsetHash &tipset_hash,
+      const std::vector<CID> &block_cids,
+      const BigInt &weight,
+      uint64_t height,
+      uint64_t branch_id) {
+    auto tx = beginTx();
+
+    int res = db_.execCommand(insert_tipset_,
+                              tipset_hash,
+                              SYNC_STATE_UNSYNCED,
+                              branch_id,
+                              weight.str(),
+                              height);
+    if (res < 0) {
+      log()->error("newTipset: cannot insert tipset");
+      return Error::INDEXDB_EXECUTE_ERROR;
+    }
+
+    if (res == 0) {
+      log()->debug("newTipset: tipset {} is already known",
+                   common::hex_lower(tipset_hash));
+    }
+
+    static const Blob emptyBlob;
+
+    int seq = 1;
+    for (const auto &cid : block_cids) {
+      OUTCOME_TRY(cid_bytes, cid.toBytes());
+
+      res = db_.execCommand(insert_cid_,
+                            cid_bytes,
+                            emptyBlob,
+                            OBJECT_TYPE_BLOCK,
+                            SYNC_STATE_UNSYNCED);
+      if (res < 0) {
+        log()->error("newTipset: cannot insert block cid");
+        return Error::INDEXDB_EXECUTE_ERROR;
+      }
+      if (res == 0) {
+        log()->debug("newTipset: block {} is already known",
+                     common::hex_lower(tipset_hash));
+      }
+
+      res = db_.execCommand(insert_tipset_block_, tipset_hash, cid_bytes, seq);
+      if (res < 0) {
+        log()->error("newTipset: cannot link {} and {}",
+                     common::hex_lower(tipset_hash),
+                     toString(cid));
+        return Error::INDEXDB_EXECUTE_ERROR;
+      }
+      ++seq;
+    }
+
+    tx.commit();
+    return outcome::success();
+  }
+
+  outcome::result<void> IndexDbImpl::newObject(const CID &cid,
+                                               ObjectType type) {
+    OUTCOME_TRY(cid_bytes, cid.toBytes());
+    int res = db_.execCommand(
+        insert_cid_, cid_bytes, Blob(), type, SYNC_STATE_UNSYNCED);
+    if (res < 0) {
+      return Error::INDEXDB_EXECUTE_ERROR;
+    }
+    if (res == 0) {
+      log()->debug("cid {} is already known", toString(cid));
+    }
+    return outcome::success();
+  }
+
+  outcome::result<void> IndexDbImpl::blockHeaderSynced(
+      const CID &block_cid,
+      const CID &msg_cid,
+      const std::vector<CID> &bls_msgs,
+      const std::vector<CID> &secp_msgs) {
+    OUTCOME_TRY(block_cid_bytes, block_cid.toBytes());
+    OUTCOME_TRY(msg_cid_bytes, msg_cid.toBytes());
+
+    auto tx = beginTx();
+
+    int res = db_.execCommand(block_header_synced_,
+                              block_cid_bytes,
+                              msg_cid_bytes,
+                              OBJECT_TYPE_BLOCK,
+                              SYNC_STATE_HEADER_SYNCED);
+    if (res < 0) {
+      log()->error("blockHeaderSynced: cannot update block {}",
+                   toString(block_cid));
+      return Error::INDEXDB_EXECUTE_ERROR;
+    }
+
+    OUTCOME_TRY(
+        indexBlockMessages(block_cid_bytes, bls_msgs, OBJECT_TYPE_BLS_MESSAGE));
+    OUTCOME_TRY(indexBlockMessages(
+        block_cid_bytes, secp_msgs, OBJECT_TYPE_SECP_MESSAGE));
+
+    tx.commit();
+    return outcome::success();
+  }
+
+  outcome::result<void> IndexDbImpl::indexBlockMessages(
+      const Blob &block_cid_bytes,
+      const std::vector<CID> &msgs,
+      ObjectType msg_type) {
+    int seq = 1;
+    if (msg_type == OBJECT_TYPE_SECP_MESSAGE) {
+      seq += 1000000000;
+    }
+
+    for (const auto &cid : msgs) {
+      OUTCOME_TRY(cid_bytes, cid.toBytes());
+
+      int res = db_.execCommand(insert_cid_,
+                                cid_bytes,
+                                block_cid_bytes,
+                                msg_type,
+                                SYNC_STATE_UNSYNCED);
+      if (res < 0) {
+        log()->error("indexBlockMessages: cannot insert msg cid");
+        return Error::INDEXDB_EXECUTE_ERROR;
+      }
+      if (res == 0) {
+        log()->debug("indexBlockMessages: msg {} is already known",
+                     toString(cid));
+      }
+
+      res = db_.execCommand(insert_block_msg_, block_cid_bytes, cid_bytes, seq);
+      if (res < 0) {
+        log()->error("indexBlockMessages: cannot link msg cid {}",
+                     toString(cid));
+        return Error::INDEXDB_EXECUTE_ERROR;
+      }
+      ++seq;
+    }
+
+    return outcome::success();
+  }
+
+  outcome::result<void> IndexDbImpl::objectSynced(const CID &cid) {
+    OUTCOME_TRY(cid_bytes, cid.toBytes());
+    RETURN_UPDATE_ONE_ROW(db_.execCommand(
+        update_object_sync_state_, SYNC_STATE_SYNCED, cid_bytes));
   }
 
   outcome::result<SyncState> IndexDbImpl::getTipsetSyncState(
@@ -254,10 +405,10 @@ namespace fc::storage::indexdb {
     return decodeTipsetSyncState(state);
   }
 
-  outcome::result<void> IndexDbImpl::updateTipsetSyncState(
+  outcome::result<SyncState> IndexDbImpl::updateTipsetSyncState(
       const TipsetHash &tipset_hash) {
-    RETURN_UPDATE_ONE_ROW(db_.execCommand(
-        update_tipset_sync_state_, tipset_hash, tipset_hash));
+    db_.execCommand(update_tipset_sync_state_, tipset_hash, tipset_hash);
+    return getTipsetSyncState(tipset_hash);
   }
 
   outcome::result<void> IndexDbImpl::getTipsetInfo(const Blob &tipset_hash,
@@ -294,23 +445,24 @@ namespace fc::storage::indexdb {
     RETURN_QUERY_RESULT(db_.execQuery(get_branches_, cb));
   }
 
-  outcome::result<void> IndexDbImpl::insertBlock(const Blob &cid,
-                                                 const Blob &msg_cid,
-                                                 int type,
-                                                 int sync_state,
-                                                 int ref_count) {
-    RETURN_UPDATE_ONE_ROW(db_.execCommand(
-        insert_block_, cid, msg_cid, type, sync_state, ref_count));
-  }
-
-  outcome::result<void> IndexDbImpl::insertTipset(const Blob &tipset_hash,
-                                                  int sync_state,
-                                                  uint64_t branch_id,
-                                                  const std::string &weight,
-                                                  uint64_t height) {
-    RETURN_UPDATE_ONE_ROW(db_.execCommand(
-        insert_tipset_, tipset_hash, sync_state, branch_id, weight, height));
-  }
+  //  outcome::result<void> IndexDbImpl::insertBlock(const Blob &cid,
+  //                                                 const Blob &msg_cid,
+  //                                                 int type,
+  //                                                 int sync_state,
+  //                                                 int ref_count) {
+  //    RETURN_UPDATE_ONE_ROW(db_.execCommand(
+  //        insert_block_, cid, msg_cid, type, sync_state, ref_count));
+  //  }
+  //
+  //  outcome::result<void> IndexDbImpl::insertTipset(const Blob &tipset_hash,
+  //                                                  int sync_state,
+  //                                                  uint64_t branch_id,
+  //                                                  const std::string &weight,
+  //                                                  uint64_t height) {
+  //    RETURN_UPDATE_ONE_ROW(db_.execCommand(
+  //        insert_tipset_, tipset_hash, sync_state, branch_id, weight,
+  //        height));
+  //  }
 
   outcome::result<void> IndexDbImpl::insertTipsetBlock(const Blob &tipset_hash,
                                                        const Blob &cid,
@@ -324,10 +476,9 @@ namespace fc::storage::indexdb {
     RETURN_UPDATE_ONE_ROW(db_.execCommand(insert_link_, left, right));
   }
 
-  outcome::result<void> IndexDbImpl::updateBlockSyncState(const Blob &cid,
-                                                          int new_sync_state) {
-    RETURN_UPDATE_ONE_ROW(
-        db_.execCommand(update_block_sync_state_, new_sync_state, cid));
+  outcome::result<void> IndexDbImpl::linkBranches(uint64_t parent,
+                                                  uint64_t child) {
+    RETURN_UPDATE_ONE_ROW(db_.execCommand(link_branches_, parent, parent));
   }
 
   void IndexDbImpl::init() {
@@ -342,7 +493,7 @@ namespace fc::storage::indexdb {
             (height))",
         R"(CREATE TABLE IF NOT EXISTS cids (
             cid BLOB PRIMARY KEY,
-            msg_cid BLOB NOT_NULL,
+            ref_cid BLOB NOT_NULL,
             type INTEGER NOT NULL,
             sync_state INTEGER NOT NULL))",
         R"(CREATE TABLE IF NOT EXISTS links (
@@ -365,7 +516,16 @@ namespace fc::storage::indexdb {
             tipset BLOB REFERENCES tipsets(hash),
             cid BLOB REFERENCES cids(cid),
             seq INTEGER NOT NULL,
-            UNIQUE (tipset, cid, seq)))",
+            UNIQUE (tipset, cid)))",
+        R"(CREATE UNIQUE INDEX IF NOT EXISTS tipset_seq ON blocks_in_tipset
+            (tipset, seq))",
+        R"(CREATE TABLE IF NOT EXISTS messages_in_block (
+            block BLOB REFERENCES cids(cid),
+            msg BLOB REFERENCES cids(cid),
+            seq INTEGER NOT NULL,
+            UNIQUE (block, msg)))",
+        R"(CREATE UNIQUE INDEX IF NOT EXISTS msg_seq ON messages_in_block
+            (block, seq))",
     };
 
     try {
@@ -389,17 +549,17 @@ namespace fc::storage::indexdb {
           WHERE hash=?)");
 
       get_tipset_cids_ = db_.createStatement(
-          R"(SELECT cid,msg_cid,type,sync_state FROM cids
+          R"(SELECT cid,ref_cid,type,sync_state FROM cids
           WHERE cid IN
           (SELECT cid FROM blocks_in_tipset WHERE tipset=? ORDER BY seq))");
 
       get_cid_info_ = db_.createStatement(
-          R"(SELECT cid,msg_cid,type,sync_state FROM cids
+          R"(SELECT cid,ref_cid,type,sync_state FROM cids
           WHERE cid=?)");
 
       get_tipsets_of_cid_ = db_.createStatement(
           R"(SELECT hash,sync_state,branch_id,weight,height FROM tipsets
-          WHERE hash IN(SELECT tipsets FROM blocks_in_tipset WHERE cid=?))");
+          WHERE hash IN(SELECT tipset FROM blocks_in_tipset WHERE cid=?))");
 
       get_parents_ =
           db_.createStatement("SELECT left FROM links WHERE right=?");
@@ -422,8 +582,8 @@ namespace fc::storage::indexdb {
           WHERE cid IN
           (SELECT cid FROM blocks_in_tipset WHERE tipset=?))");
 
-      insert_block_ =
-          db_.createStatement("INSERT OR IGNORE INTO cids VALUES(?,?,?,?,?)");
+      insert_cid_ =
+          db_.createStatement("INSERT OR IGNORE INTO cids VALUES(?,?,?,?)");
 
       insert_tipset_ = db_.createStatement(
           "INSERT OR IGNORE INTO tipsets VALUES(?,?,?,?,?)");
@@ -431,14 +591,19 @@ namespace fc::storage::indexdb {
       insert_tipset_block_ =
           db_.createStatement("INSERT INTO blocks_in_tipset VALUES(?,?,?)");
 
+      insert_block_msg_ =
+          db_.createStatement("INSERT INTO messages_in_block VALUES(?,?,?)");
+
       insert_link_ = db_.createStatement("INSERT INTO links VALUES(?,?)");
 
-      update_block_sync_state_ =
+      block_header_synced_ =
+          db_.createStatement("INSERT OR REPLACE INTO cids VALUES(?,?,?,?)");
+
+      update_object_sync_state_ =
           db_.createStatement("UPDATE cids SET sync_state=? WHERE cid=?");
 
-      update_tipset_sync_state_ =
-          db_.createStatement(
-              R"(UPDATE tipsets SET sync_state=
+      update_tipset_sync_state_ = db_.createStatement(
+          R"(UPDATE tipsets SET sync_state=
               (SELECT MIN(sync_state) FROM cids WHERE cid IN
               (SELECT cid FROM blocks_in_tipset WHERE tipset=?))
               WHERE hash=?)");
