@@ -85,7 +85,7 @@ namespace fc::node {
 
     // TODO: genesis time
     o.chain_epoch_clock =
-        std::make_shared<clock::ChainEpochClockImpl>(clock::Time{{}});
+        std::make_shared<clock::ChainEpochClockImpl>(clock::Time{});
 
     // TODO - switch on real storage after debugging all the stuff
     o.ipfs_datastore = std::make_shared<storage::ipfs::InMemoryDatastore>();
