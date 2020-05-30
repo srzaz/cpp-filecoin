@@ -12,6 +12,7 @@
 #include <libp2p/protocol/identify/identify_delta.hpp>
 #include <libp2p/protocol/identify/identify_push.hpp>
 
+#include "api/make.hpp"
 #include "blockchain/block_validator/impl/block_validator_impl.hpp"
 #include "blockchain/impl/weight_calculator_impl.hpp"
 #include "clock/impl/chain_epoch_clock_impl.hpp"
@@ -22,6 +23,7 @@
 #include "storage/chain/impl/chain_store_impl.hpp"
 #include "storage/ipfs/graphsync/impl/graphsync_impl.hpp"
 #include "storage/ipfs/impl/in_memory_datastore.hpp"
+#include "storage/keystore/impl/in_memory/in_memory_keystore.hpp"
 #include "vm/interpreter/impl/interpreter_impl.hpp"
 
 namespace fc::node {
@@ -106,6 +108,10 @@ namespace fc::node {
     auto secp_provider =
         std::make_shared<crypto::secp256k1::Secp256k1ProviderImpl>();
 
+    // TODO: persistent keystore
+    auto key_store = std::make_shared<storage::keystore::InMemoryKeyStore>(
+        bls_provider, secp_provider);
+
     auto vm_interpreter = std::make_shared<vm::interpreter::InterpreterImpl>();
 
     o.block_validator =
@@ -133,6 +139,12 @@ namespace fc::node {
 
     o.graphsync = std::make_shared<storage::ipfs::graphsync::GraphsyncImpl>(
         o.host, o.scheduler);
+
+    o.api = std::make_shared<api::Api>(api::makeImpl(o.chain_store,
+                                                     weight_calculator,
+                                                     o.ipfs_datastore,
+                                                     bls_provider,
+                                                     key_store));
 
     return o;
   }

@@ -58,6 +58,10 @@ namespace fc {
       class BlockValidator;
     }
   }  // namespace blockchain
+
+  namespace api {
+    struct Api;
+  }  // namespace api
 }  // namespace fc
 
 namespace fc::node {
@@ -78,12 +82,14 @@ namespace fc::node {
     std::shared_ptr<storage::ipfs::IpfsDatastore> ipfs_datastore;
 
     std::shared_ptr<blockchain::block_validator::BlockValidator>
-            block_validator;
+        block_validator;
     std::shared_ptr<storage::blockchain::ChainStore> chain_store;
 
     std::shared_ptr<libp2p::protocol::gossip::Gossip> gossip;
 
     std::shared_ptr<storage::ipfs::graphsync::Graphsync> graphsync;
+
+    std::shared_ptr<api::Api> api;
   };
 
   outcome::result<NodeObjects> createNodeObjects(const Config &config);

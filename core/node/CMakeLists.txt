@@ -23,6 +23,7 @@ target_link_libraries(node_builder
     chain_data_store
     block_validator
     interpreter
+    rpc
     runtime
     ipfs_datastore_in_memory
     weight_calculator
