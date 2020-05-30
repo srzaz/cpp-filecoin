@@ -85,8 +85,7 @@ namespace fc::api {
                std::shared_ptr<WeightCalculator> weight_calculator,
                std::shared_ptr<Ipld> ipld,
                std::shared_ptr<BlsProvider> bls_provider,
-               std::shared_ptr<KeyStore> key_store,
-               Logger logger) {
+               std::shared_ptr<KeyStore> key_store) {
     auto chain_randomness = chain_store->createRandomnessProvider();
     auto tipsetContext = [=](const TipsetKey &tipset_key,
                              bool interpret =
