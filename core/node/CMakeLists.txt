@@ -30,4 +30,11 @@ target_link_libraries(node_builder
     secp256k1_provider
     Boost::program_options)
 
+add_executable(node_main
+    main.cpp
+    )
+target_link_libraries(node_main
+    node_builder
+    )
+
 add_subdirectory(integration)
