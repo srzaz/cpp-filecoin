@@ -19,6 +19,9 @@ namespace {
   using Blob = std::vector<uint8_t>;
   using BlobGraph = std::vector<std::vector<Blob>>;
   using BranchGraph = std::vector<std::vector<uint64_t>>;
+  using Cids = std::vector<fc::CID>;
+
+  constexpr auto kMemoryDbName = ":memory:";
 
   Blob createBlob(size_t n, int i) {
     uint64_t x = (n << 16) + i;
@@ -101,14 +104,13 @@ namespace {
     return db;
   }
 
-  std::pair<TipsetInfo, std::vector<fc::CID>> createNewTipset(
-      size_t n_blocks,
-      SyncState sync_state,
-      BigInt weight,
-      uint64_t height,
-      uint64_t branch_id,
-      size_t blocks_unique_prefix = 0) {
-    std::pair<TipsetInfo, std::vector<fc::CID>> ret;
+  std::pair<TipsetInfo, Cids> createNewTipset(size_t n_blocks,
+                                              SyncState sync_state,
+                                              BigInt weight,
+                                              uint64_t height,
+                                              uint64_t branch_id,
+                                              size_t blocks_unique_prefix = 0) {
+    std::pair<TipsetInfo, Cids> ret;
     auto &cids = ret.second;
     cids.reserve(n_blocks);
     for (size_t i = 0; i < n_blocks; ++i) {
@@ -121,6 +123,51 @@ namespace {
     i.weight = std::move(weight);
     i.height = height;
     return ret;
+  }
+
+  std::tuple<fc::CID, Cids, Cids> createMessageCids(size_t n_bls_messages,
+                                                    size_t n_secp_messages) {
+    static size_t unique_seed = 1 << 20;
+
+    auto createUniqueCid = [&]() -> fc::CID {
+      return createCID(++unique_seed, 1);
+    };
+
+    Cids bls_msgs;
+    bls_msgs.reserve(n_bls_messages);
+    std::generate_n(
+        std::back_inserter(bls_msgs), n_bls_messages, createUniqueCid);
+
+    Cids secp_msgs;
+    secp_msgs.reserve(n_secp_messages);
+    std::generate_n(
+        std::back_inserter(secp_msgs), n_secp_messages, createUniqueCid);
+
+    return std::make_tuple(
+        createUniqueCid(), std::move(bls_msgs), std::move(secp_msgs));
+  }
+
+  void insertUnsyncedTipset(IndexDb &db,
+                            const TipsetInfo &tipset,
+                            const Cids &cids) {
+    EXPECT_OUTCOME_TRUE_1(db.newTipset(
+        tipset.tipset, cids, tipset.weight, tipset.height, tipset.branch_id));
+  }
+
+  void makeBlockSynced(IndexDb &db,
+                       const fc::CID &block_cid,
+                       const fc::CID &msg_cid,
+                       const Cids &bls_msgs,
+                       const Cids &secp_msgs) {
+    EXPECT_OUTCOME_TRUE_1(
+        db.blockHeaderSynced(block_cid, msg_cid, bls_msgs, secp_msgs));
+    for (const auto &cid : bls_msgs) {
+      EXPECT_OUTCOME_TRUE_1(db.objectSynced(cid));
+    }
+    for (const auto &cid : secp_msgs) {
+      EXPECT_OUTCOME_TRUE_1(db.objectSynced(cid));
+    }
+    EXPECT_OUTCOME_TRUE_1(db.objectSynced(block_cid));
   }
 
   void expectEqual(const TipsetInfo &a, const TipsetInfo &b) {
@@ -137,8 +184,7 @@ namespace {
     auto [tipset, cids] =
         createNewTipset(10, SYNC_STATE_UNSYNCED, BigInt("100500"), 100, 500);
 
-    EXPECT_OUTCOME_TRUE_1(db->newTipset(
-        tipset.tipset, cids, tipset.weight, tipset.height, tipset.branch_id));
+    insertUnsyncedTipset(*db, tipset, cids);
 
     EXPECT_OUTCOME_TRUE_2(roots, db->getRoots());
     EXPECT_EQ(roots.size(), 1);
@@ -160,11 +206,111 @@ namespace {
     }
   }
 
+  void testMinimalFlow() {
+    auto db = createEmptyDb(kMemoryDbName);
+
+    uint64_t branch_id = 1;
+    uint64_t height = 0;
+    BigInt weight("1");
+    size_t n_blocks = 1;
+
+    auto [head_tipset, head_cids] = createNewTipset(
+        n_blocks, SYNC_STATE_UNSYNCED, weight, height, branch_id, height);
+
+    insertUnsyncedTipset(*db, head_tipset, head_cids);
+
+    auto [head_msg_cid, head_bls_msgs, head_secp_msgs] =
+        createMessageCids(0, 0);
+
+    makeBlockSynced(
+        *db, head_cids[0], head_msg_cid, head_bls_msgs, head_secp_msgs);
+
+    EXPECT_OUTCOME_TRUE_2(
+        head_sync_state,
+        db->updateTipsetSyncState(head_tipset.tipset, boost::none));
+
+    EXPECT_EQ(head_sync_state, SYNC_STATE_SYNCED);
+
+    ++height;
+    weight += 100500;
+
+    auto [new_tipset, new_cids] = createNewTipset(
+        n_blocks, SYNC_STATE_UNSYNCED, weight, height, branch_id, height);
+
+    insertUnsyncedTipset(*db, new_tipset, new_cids);
+
+    auto [new_msg_cid, new_bls_msgs, new_secp_msgs] = createMessageCids(10, 5);
+
+    makeBlockSynced(*db, new_cids[0], new_msg_cid, new_bls_msgs, new_secp_msgs);
+
+    EXPECT_OUTCOME_TRUE_2(new_sync_state,
+                          db->updateTipsetSyncState(
+                              new_tipset.tipset, std::ref(head_tipset.tipset)));
+
+    EXPECT_EQ(new_sync_state, SYNC_STATE_SYNCED);
+  }
+
+  void testStraightBranch(uint64_t max_height) {
+    auto db = createEmptyDb(kMemoryDbName);
+
+    uint64_t branch_id = 1;
+    uint64_t height = 0;
+    BigInt weight("1");
+    size_t n_blocks = 1;
+
+    auto [head_tipset, head_cids] = createNewTipset(
+        n_blocks, SYNC_STATE_UNSYNCED, weight, height, branch_id, height);
+
+    insertUnsyncedTipset(*db, head_tipset, head_cids);
+
+    auto [head_msg_cid, head_bls_msgs, head_secp_msgs] =
+        createMessageCids(0, 0);
+
+    makeBlockSynced(
+        *db, head_cids[0], head_msg_cid, head_bls_msgs, head_secp_msgs);
+
+    EXPECT_OUTCOME_TRUE_2(
+        head_sync_state,
+        db->updateTipsetSyncState(head_tipset.tipset, boost::none));
+
+    EXPECT_EQ(head_sync_state, SYNC_STATE_SYNCED);
+
+    n_blocks = 2;
+
+    for (height = 1; height <= max_height; ++height) {
+      weight += 100500;
+
+      auto [new_tipset, new_cids] = createNewTipset(
+          n_blocks, SYNC_STATE_UNSYNCED, weight, height, branch_id, height);
+
+      insertUnsyncedTipset(*db, new_tipset, new_cids);
+
+      for (const auto& block_cid : new_cids) {
+        auto [new_msg_cid, new_bls_msgs, new_secp_msgs] =
+            createMessageCids(2, 2);
+
+        makeBlockSynced(
+            *db, block_cid, new_msg_cid, new_bls_msgs, new_secp_msgs);
+      }
+
+      EXPECT_OUTCOME_TRUE_2(
+          new_sync_state,
+          db->updateTipsetSyncState(new_tipset.tipset,
+                                    std::ref(head_tipset.tipset)));
+
+      EXPECT_EQ(new_sync_state, SYNC_STATE_SYNCED);
+    }
+
+    EXPECT_OUTCOME_TRUE_2(p, db->getBranchSyncState(branch_id));
+    EXPECT_EQ(p.first, branch_id);
+    EXPECT_EQ(p.second, SYNC_STATE_SYNCED);
+  }
+
 }  // namespace
 
 TEST(IndexDb, CreationAndReopeningMemory) {
   try {
-    testCreationReopening(":memory:", false);
+    testCreationReopening(kMemoryDbName, false);
   } catch (const std::exception &e) {
     EXPECT_EQ(std::string(e.what()), "unexpected");
   }
@@ -174,6 +320,14 @@ TEST(IndexDb, CreationAndReopeningFile) {
   std::string file_name("TestCreationAndReopening.db");
   Unlink u(file_name);
   testCreationReopening(file_name, true);
+}
+
+TEST(IndexDb, MinimalFlow2Tipsets) {
+  testMinimalFlow();
+}
+
+TEST(IndexDb, StraightBranch) {
+  testStraightBranch(1000);
 }
 
 /**

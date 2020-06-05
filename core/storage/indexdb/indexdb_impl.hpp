@@ -49,13 +49,12 @@ namespace fc::storage::indexdb {
                                       uint64_t child_branch_id) override;
 
     outcome::result<void> newTipset(const TipsetHash &tipset_hash,
-                                            const std::vector<CID> &block_cids,
-                                            const BigInt &weight,
-                                            uint64_t height,
-                                            uint64_t branch_id) override;
+                                    const std::vector<CID> &block_cids,
+                                    const BigInt &weight,
+                                    uint64_t height,
+                                    uint64_t branch_id) override;
 
-    outcome::result<void> newObject(const CID &cid,
-                                            ObjectType type) override;
+    outcome::result<void> newObject(const CID &cid, ObjectType type) override;
 
     outcome::result<void> blockHeaderSynced(
         const CID &block_cid,
@@ -68,8 +67,13 @@ namespace fc::storage::indexdb {
     outcome::result<SyncState> getTipsetSyncState(
         const TipsetHash &tipset_hash) override;
 
-    outcome::result<SyncState> updateTipsetSyncState(
+    outcome::result<TipsetInfo> getTipsetInfo(
         const TipsetHash &tipset_hash) override;
+
+    outcome::result<SyncState> updateTipsetSyncState(
+        const TipsetHash &tipset_hash,
+        boost::optional<const std::reference_wrapper<TipsetHash>> parent)
+        override;
 
    private:
     /// RAII tx helper
@@ -96,9 +100,6 @@ namespace fc::storage::indexdb {
     outcome::result<std::pair<uint64_t, int>> getBranchSyncStateStep(
         uint64_t branch_id);
 
-    outcome::result<void> getTipsetInfo(const Blob &tipset_hash,
-                                        const GetTipsetFn &cb);
-
     outcome::result<void> getTipsetCids(const Blob &tipset_hash,
                                         const GetCidFn &cb);
 
@@ -115,27 +116,13 @@ namespace fc::storage::indexdb {
 
     outcome::result<void> getBranches(const GetBranchFn &cb);
 
-//    outcome::result<void> insertBlock(const Blob &cid,
-//                                      const Blob &msg_cid,
-//                                      int type,
-//                                      int sync_state,
-//                                      int ref_count);
-//
-//    outcome::result<void> insertTipset(const Blob &tipset_hash,
-//                                       int sync_state,
-//                                       uint64_t branch_id,
-//                                       const std::string &weight,
-//                                       uint64_t height);
-
     outcome::result<void> insertTipsetBlock(const Blob &tipset_hash,
                                             const Blob &cid,
                                             int seq);
 
-    outcome::result<void> insertLink(const Blob &left, const Blob &right);
-
     outcome::result<void> linkBranches(uint64_t parent, uint64_t child);
 
-    outcome::result<void> indexBlockMessages(const Blob& block_cid_bytes,
+    outcome::result<void> indexBlockMessages(const Blob &block_cid_bytes,
                                              const std::vector<CID> &msgs,
                                              ObjectType msg_type);
 

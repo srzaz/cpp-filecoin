@@ -82,6 +82,18 @@ namespace fc::storage::indexdb {
                                             uint64_t height,
                                             uint64_t branch_id) = 0;
 
+    /// updates tipset sync state and returns it
+    virtual outcome::result<SyncState> getTipsetSyncState(
+        const TipsetHash &tipset_hash) = 0;
+
+    virtual outcome::result<TipsetInfo> getTipsetInfo(
+        const TipsetHash &tipset_hash) = 0;
+
+    /// returns tipset sync state
+    virtual outcome::result<SyncState> updateTipsetSyncState(
+        const TipsetHash &tipset_hash,
+        boost::optional<const std::reference_wrapper<TipsetHash>> parent) = 0;
+
     /// Adds info about new block or message CID, unsynced
     virtual outcome::result<void> newObject(const CID &cid,
                                             ObjectType type) = 0;
@@ -93,14 +105,6 @@ namespace fc::storage::indexdb {
         const std::vector<CID> &secp_msgs) = 0;
 
     virtual outcome::result<void> objectSynced(const CID &cid) = 0;
-
-    /// updates tipset sync state and returns it
-    virtual outcome::result<SyncState> getTipsetSyncState(
-        const TipsetHash &tipset_hash) = 0;
-
-    /// returns tipset sync state
-    virtual outcome::result<SyncState> updateTipsetSyncState(
-        const TipsetHash &tipset_hash) = 0;
   };
 
 }  // namespace fc::storage::indexdb
