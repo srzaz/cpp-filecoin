@@ -70,6 +70,8 @@ namespace fc::storage::indexdb {
     outcome::result<TipsetInfo> getTipsetInfo(
         const TipsetHash &tipset_hash) override;
 
+    outcome::result<CIDInfo> getObjectInfo(const CID& cid) override;
+
     outcome::result<SyncState> updateTipsetSyncState(
         const TipsetHash &tipset_hash,
         boost::optional<const std::reference_wrapper<TipsetHash>> parent)
@@ -102,8 +104,6 @@ namespace fc::storage::indexdb {
 
     outcome::result<void> getTipsetCids(const Blob &tipset_hash,
                                         const GetCidFn &cb);
-
-    outcome::result<void> getCidInfo(const Blob &cid, const GetCidFn &cb);
 
     outcome::result<void> getTipsetsOfCid(const Blob &cid,
                                           const GetTipsetFn &cb);

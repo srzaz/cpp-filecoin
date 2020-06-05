@@ -14,6 +14,7 @@
 #include <libp2p/peer/peer_id.hpp>
 
 #include "clock/utc_clock.hpp"
+#include "common/buffer.hpp"
 #include "primitives/tipset/tipset_key.hpp"
 #include "primitives/big_int.hpp"
 

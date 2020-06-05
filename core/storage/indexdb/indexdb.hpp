@@ -50,8 +50,10 @@ namespace fc::storage::indexdb {
   };
 
   struct CIDInfo {
+    explicit CIDInfo(CID c) : cid(std::move(c)) {}
+
     CID cid;
-    CID msg_cid;
+    boost::optional<CID> msg_cid;
     ObjectType type = OBJECT_TYPE_UNKNOWN;
     SyncState sync_state = SYNC_STATE_UNKNOWN;
   };
@@ -88,6 +90,8 @@ namespace fc::storage::indexdb {
 
     virtual outcome::result<TipsetInfo> getTipsetInfo(
         const TipsetHash &tipset_hash) = 0;
+
+    virtual outcome::result<CIDInfo> getObjectInfo(const CID& cid) = 0;
 
     /// returns tipset sync state
     virtual outcome::result<SyncState> updateTipsetSyncState(

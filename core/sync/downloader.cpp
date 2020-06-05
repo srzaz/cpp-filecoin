@@ -59,10 +59,9 @@ namespace fc::sync {
   }  // namespace
 
   Downloader::TipsetCrafter::TipsetCrafter(Downloader &o,
-                                           std::vector<CID> c,
-                                           TipsetHash h,
-                                           uint64_t branch)
-      : owner(o), cids(std::move(c)), hash(std::move(h)), branch_id(branch) {
+                                           const TipsetKey& key)
+      : owner(o), tipset_key(key) {
+    const auto& cids = tipset_key.cids();
     wantlist.insert(cids.begin(), cids.end());
     blocks_filled.resize(cids.size());
   }
@@ -77,6 +76,7 @@ namespace fc::sync {
 
     wantlist.erase(it);
 
+    const auto& cids = tipset_key.cids();
     size_t pos = 0;
     for (; pos < cids.size(); ++pos) {
       if (cids[pos] == cid) break;
@@ -93,14 +93,14 @@ namespace fc::sync {
 
     call_completed_ = owner.scheduler_->schedule([this]() {
       std::vector<BlockHeader> blocks;
-      blocks.reserve(cids.size());
+      blocks.reserve(tipset_key.cids().size());
       for (auto &b : blocks_filled) {
-        assert(b);
+        assert(b.has_value());
         blocks.emplace_back(std::move(b.value()));
       }
 
       auto res = Tipset::create(std::move(blocks));
-      owner.onTipsetCompleted(res, cids, hash, branch_id);
+      owner.onTipsetCompleted(res, tipset_key);
     });
   }
 
@@ -158,86 +158,75 @@ namespace fc::sync {
   }
 
   void Downloader::onTipsetCompleted(outcome::result<Tipset> tipset,
-                                     const std::vector<CID> &cids,
-                                     const TipsetHash &hash,
-                                     uint64_t branch_id) {
+                                     const TipsetKey& tipset_key) {
     bool success = tipset.has_value();
 
     if (success) {
-      auto res =
-          storage::indexdb::addTipset(*index_db_,
-                                      tipset.value(),
-                                      hash,
-                                      storage::indexdb::TIPSET_STATE_SYNCED,
-                                      branch_id);
-      if (!res) {
-        // error is already logged inside indexdb
-        success = false;
-      }
+      // TODO move to syncer
+//      auto res =
+//          storage::indexdb::addTipset(*index_db_,
+//                                      tipset.value(),
+//                                      hash,
+//                                      storage::indexdb::TIPSET_STATE_SYNCED,
+//                                      branch_id);
+//      if (!res) {
+//        // error is already logged inside indexdb
+//        success = false;
+//      }
     }
 
-    if (!tipsets_signal_.empty()) {
-      if (success) {
-        tipsets_signal_(TipsetAvailable{
-            load_success, cids, hash, branch_id, tipset.value()});
-      } else {
-        tipsets_signal_(TipsetAvailable{
-            object_is_invalid, cids, hash, branch_id, boost::none});
-      }
-    }
+//    if (!tipsets_signal_.empty()) {
+//      if (success) {
+//        tipsets_signal_(TipsetAvailable{
+//            load_success, cids, hash, branch_id, tipset.value()});
+//      } else {
+//        tipsets_signal_(TipsetAvailable{
+//            object_is_invalid, cids, hash, branch_id, boost::none});
+//      }
+//    }
 
-    tipset_requests_.erase(hash);
+    tipset_requests_.erase(tipset_key.hash());
   }
 
-  outcome::result<void> Downloader::loadTipset(std::vector<CID> cids,
-                                               uint64_t branch_id) {
+  outcome::result<void> Downloader::loadTipset(const TipsetKey &key) {
     using namespace storage::indexdb;
 
-    auto hash = primitives::tipset::tipsetHash(cids);
-    if (tipset_requests_.count(hash) != 0) {
+    if (tipset_requests_.count(key.hash()) != 0) {
       // already waiting, do nothing
       return outcome::success();
     }
 
-    OUTCOME_TRY(tipset_state, getTipsetState(*index_db_, hash));
+    OUTCOME_TRY(sync_state, index_db_->getTipsetSyncState(key.hash()));
 
-    if (!needToSync(tipset_state.sync_state)) {
-      // TODO handle this: caller should check if available before syncing
+    if (!needToSync(sync_state)) {
       return outcome::success();
     }
 
-    OUTCOME_TRY(pairs, getBlocksState(*index_db_, cids));
-
     std::vector<std::pair<CID, BlockHeader>> blocks;
-    bool error = false;
 
-    for (const auto &[cid, state] : pairs) {
-      switch (state) {
-        case NOT_A_BLOCK:
-          log()->error("loadTipset: {} is not a block", cid.toString());
-          return Error::SYNC_WRONG_OBJECT_TYPE;
+    for (const auto& cid : key.cids()) {
+      OUTCOME_TRY(info, index_db_->getObjectInfo(cid));
 
-        case BLOCK_STATE_UNKNOWN:
-        case BLOCK_STATE_HEADER_SYNCED: {
-          OUTCOME_TRY(loadBlock(cid, state));
-        } break;
+      if (info.type == OBJECT_TYPE_UNKNOWN) {
 
-        case BLOCK_STATE_SYNCED: {
-          OUTCOME_TRY(appendBlockHeader(*ipfs_db_, cid, blocks));
-        } break;
+        OUTCOME_TRY(loadBlock(cid, SYNC_STATE_UNKNOWN));
 
-        default:
-          log()->critical(
-              "loadTipset: integrity error, unknown "
-              "state {} for cid {}",
-              state,
-              cid.toString());
-          return Error::SYNC_DATA_INTEGRITY_ERROR;
+      } else if (info.type != OBJECT_TYPE_BLOCK) {
+
+        log()->error("loadTipset: {} is not a block", cid.toString());
+        return Error::SYNC_WRONG_OBJECT_TYPE;
+
+      } else if (info.sync_state == SYNC_STATE_SYNCED) {
+
+        OUTCOME_TRY(appendBlockHeader(*ipfs_db_, cid, blocks));
+
+      } else {
+        OUTCOME_TRY(loadBlock(cid, info.sync_state));
       }
     }
 
     auto p = tipset_requests_.insert(
-        {hash, TipsetCrafter(*this, std::move(cids), hash, branch_id)});
+        {key.hash(), TipsetCrafter(*this, key)});
 
     assert(p.second);
 
@@ -247,6 +236,8 @@ namespace fc::sync {
       // feeding existing blocks
       crafter.onBlockSynced(cid, bh);
     }
+
+    return outcome::success();
   }
 
   outcome::result<void> Downloader::loadBlock(

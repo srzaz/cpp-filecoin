@@ -89,11 +89,36 @@ namespace fc::storage::indexdb {
       return true;
     }
 
-    outcome::result<SyncState> decodeTipsetSyncState(int int_val) {
+    outcome::result<SyncState> decodeSyncState(int int_val) {
       if ((int_val < SYNC_STATE_BAD) || (int_val > SYNC_STATE_SYNCED)) {
         return Error::INDEXDB_DECODE_ERROR;
       }
       return static_cast<SyncState>(int_val);
+    }
+
+    boost::optional<CIDInfo> decodeCIDInfo(const Blob &cid_blob,
+                                           const Blob &msg_cid_blob,
+                                           int type,
+                                           int sync_state) {
+      if (cid_blob.empty() || (sync_state < SYNC_STATE_BAD)
+          || (sync_state > SYNC_STATE_SYNCED) || type < 0) {
+        return boost::none;
+      }
+      auto cid_res = CID::fromBytes(cid_blob);
+      if (!cid_res) {
+        return boost::none;
+      }
+      CIDInfo info(std::move(cid_res.value()));
+      if (!msg_cid_blob.empty()) {
+        cid_res = CID::fromBytes(msg_cid_blob);
+        if (!cid_res) {
+          return boost::none;
+        }
+        info.msg_cid = std::move(cid_res.value());
+      }
+      info.type = static_cast<ObjectType>(type);
+      info.sync_state = static_cast<SyncState>(sync_state);
+      return info;
     }
 
   }  // namespace
@@ -182,7 +207,7 @@ namespace fc::storage::indexdb {
       }
     }
 
-    OUTCOME_TRY(state, decodeTipsetSyncState(state_int));
+    OUTCOME_TRY(state, decodeSyncState(state_int));
     return std::pair(root_id, state);
   }
 
@@ -413,7 +438,7 @@ namespace fc::storage::indexdb {
   }
 
   outcome::result<SyncState> IndexDbImpl::getTipsetSyncState(
-      const Blob &tipset_hash) {
+      const TipsetHash &tipset_hash) {
     int state = INT_MIN;
     bool res = db_.execQuery(
         get_tipset_sync_state_, [&](int s) { state = s; }, tipset_hash);
@@ -421,14 +446,15 @@ namespace fc::storage::indexdb {
       return Error::INDEXDB_EXECUTE_ERROR;
     }
     if (state == INT_MIN) {
-      return Error::INDEXDB_NOT_FOUND;
+      return SYNC_STATE_UNKNOWN;
     }
-    return decodeTipsetSyncState(state);
+    return decodeSyncState(state);
   }
 
   outcome::result<TipsetInfo> IndexDbImpl::getTipsetInfo(
       const TipsetHash &tipset_hash) {
     boost::optional<TipsetInfo> info;
+    bool decode_error = false;
     bool res = db_.execQuery(
         get_tipset_info_,
         [&](const Blob &tipset_hash,
@@ -438,10 +464,41 @@ namespace fc::storage::indexdb {
             uint64_t height) {
           info = decodeTipsetInfo(
               tipset_hash, sync_state, branch_id, weight, height);
+          if (!info) decode_error = true;
         },
         tipset_hash);
+    if (decode_error) {
+      return Error::INDEXDB_DECODE_ERROR;
+    }
     if (!info) {
-      return Error::INDEXDB_NOT_FOUND;
+      return TipsetInfo{};
+    }
+    if (!res) {
+      return Error::INDEXDB_EXECUTE_ERROR;
+    }
+    return info.value();
+  }
+
+  outcome::result<CIDInfo> IndexDbImpl::getObjectInfo(const CID &cid) {
+    OUTCOME_TRY(cid_bytes, cid.toBytes());
+    boost::optional<CIDInfo> info;
+    bool decode_error = false;
+    bool res = db_.execQuery(
+        get_cid_info_,
+        [&](const Blob &cid,
+            const Blob &msg_cid,
+            int type,
+            int sync_state) {
+          info = decodeCIDInfo(
+              cid, msg_cid, type, sync_state);
+          if (!info) decode_error = true;
+        },
+        cid_bytes);
+    if (decode_error) {
+      return Error::INDEXDB_DECODE_ERROR;
+    }
+    if (!info) {
+      return CIDInfo(cid);
     }
     if (!res) {
       return Error::INDEXDB_EXECUTE_ERROR;
@@ -480,11 +537,6 @@ namespace fc::storage::indexdb {
   outcome::result<void> IndexDbImpl::getTipsetCids(const Blob &tipset_hash,
                                                    const GetCidFn &cb) {
     RETURN_QUERY_RESULT(db_.execQuery(get_tipset_cids_, cb, tipset_hash));
-  }
-
-  outcome::result<void> IndexDbImpl::getCidInfo(const Blob &cid,
-                                                const GetCidFn &cb) {
-    RETURN_QUERY_RESULT(db_.execQuery(get_cid_info_, cb, cid));
   }
 
   outcome::result<void> IndexDbImpl::getTipsetsOfCid(const Blob &cid,

@@ -6,15 +6,15 @@
 #ifndef CPP_FILECOIN_SYNC_DOWNLOADER_HPP
 #define CPP_FILECOIN_SYNC_DOWNLOADER_HPP
 
-#include <unordered_set>
 #include <set>
+#include <unordered_set>
 
 #include <boost/signals2.hpp>
 
 #include <libp2p/protocol/common/scheduler.hpp>
 #include <libp2p/protocol/gossip/gossip.hpp>
 
-#include "storage/indexdb/tipset_hash.hpp"
+#include "primitives/tipset/tipset.hpp"
 #include "storage/indexdb/indexdb.hpp"
 #include "storage/ipfs/datastore.hpp"
 #include "storage/ipfs/graphsync/graphsync.hpp"
@@ -34,6 +34,7 @@ namespace fc::sync {
   using primitives::block::BlockMsg;
   using primitives::tipset::Tipset;
   using primitives::tipset::TipsetHash;
+  using primitives::tipset::TipsetKey;
   using vm::message::UnsignedMessage;
   using PeerId = libp2p::peer::PeerId;
 
@@ -48,7 +49,7 @@ namespace fc::sync {
 
       const CID &cid;
       const common::Buffer &raw_data;
-      //const PeerId &from;
+      // const PeerId &from;
       Source source;
       LoadState load_state;
     };
@@ -92,9 +93,7 @@ namespace fc::sync {
 
     struct TipsetAvailable {
       LoadState load_state;
-      const std::vector<CID> &cids;
-      const TipsetHash &hash;
-      uint64_t branch_id;
+      const TipsetKey &key;
       boost::optional<const Tipset &> tipset;
     };
 
@@ -117,7 +116,7 @@ namespace fc::sync {
         boost::optional<PeerId> from,
         ExpectedObjectType what_to_expect = any_object_expected);
 
-    outcome::result<void> loadTipset(std::vector<CID> cids, uint64_t branch_id);
+    outcome::result<void> loadTipset(const TipsetKey &key);
 
     Downloader(std::shared_ptr<storage::indexdb::IndexDb> index_db,
                std::shared_ptr<storage::ipfs::IpfsDatastore> ipfs_db,
@@ -129,13 +128,13 @@ namespace fc::sync {
    private:
     struct CIDRequest {
       libp2p::protocol::Subscription subscription;
-      //PeerId peer;
+      // PeerId peer;
       ExpectedObjectType what_to_expect = any_object_expected;
     };
 
     using Requests = std::unordered_map<CID, std::shared_ptr<CIDRequest>>;
 
-    //using Wantlist = std::unordered_set<CID>;
+    // using Wantlist = std::unordered_set<CID>;
     using Wantlist = std::set<CID>;
 
     struct BlockCrafter {
@@ -162,12 +161,7 @@ namespace fc::sync {
     struct TipsetCrafter {
       Downloader &owner;
 
-      // cids of blocks needed
-      std::vector<CID> cids;
-
-      TipsetHash hash;
-
-      uint64_t branch_id;
+      TipsetKey tipset_key;
 
       // block cids we are waiting for
       Wantlist wantlist;
@@ -178,9 +172,7 @@ namespace fc::sync {
       libp2p::protocol::scheduler::Handle call_completed_;
 
       TipsetCrafter(Downloader &o,
-                    std::vector<CID> c,
-                    TipsetHash h,
-                    uint64_t branch);
+                    const TipsetKey& key);
 
       void onBlockSynced(const CID &cid, const BlockHeader &bh);
     };
@@ -188,12 +180,10 @@ namespace fc::sync {
     void onBlockCompleted(const CID &block_cid, const BlockMsg &msg);
 
     void onTipsetCompleted(outcome::result<Tipset> tipset,
-                           const std::vector<CID> &cids,
-                           const TipsetHash &hash,
-                           uint64_t branch_id);
+                           const TipsetKey& tipset_key);
 
-    outcome::result<void> loadBlock(
-        const CID &cid, storage::indexdb::SyncState current_state);
+    outcome::result<void> loadBlock(const CID &cid,
+                                    storage::indexdb::SyncState current_state);
 
     outcome::result<void> loadMessages(const std::vector<CID> &cids);
 
