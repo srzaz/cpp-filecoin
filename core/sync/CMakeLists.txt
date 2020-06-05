@@ -6,7 +6,9 @@
 add_library(sync
     peer_manager.cpp
     hello.cpp
-    downloader.cpp
+    common.cpp
+    tipset_loader.cpp
+    #downloader.cpp
     )
 
 target_link_libraries(sync

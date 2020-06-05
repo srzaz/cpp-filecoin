@@ -20,6 +20,8 @@ namespace fc::primitives::tipset {
     MISMATCHING_HEIGHTS,  // cannot create tipset, mismatching blocks heights
     MISMATCHING_PARENTS,  // cannot create tipset, mismatching block parents
     TICKET_HAS_NO_VALUE,  // optional ticket is not initialized
+    TICKETS_COLLISION,    // duplicate tickets in tipset
+    BLOCK_ORDER_FAILURE,  // wrong order of blocks
   };
 }
 
@@ -34,6 +36,13 @@ namespace fc::primitives::tipset {
    * https://github.com/filecoin-project/lotus/blob/6e94377469e49fa4e643f9204b6f46ef3cb3bf04/chain/types/tipset.go#L18
    */
   struct Tipset {
+    using BlocksAvailable = std::vector<boost::optional<block::BlockHeader>>;
+
+    /// Creates tipset from loaded blocks, order matters, every block must have
+    /// value
+    static outcome::result<Tipset> create(TipsetKey key,
+                                          BlocksAvailable blocks);
+
     static outcome::result<Tipset> create(
         std::vector<block::BlockHeader> blocks);
 
@@ -55,16 +64,16 @@ namespace fc::primitives::tipset {
     /**
      * @return parent state root
      */
-    CID getParentStateRoot() const;
+    const CID &getParentStateRoot() const;
 
-    inline CID getParentMessageReceipts() const {
-      return blks[0].parent_message_receipts;
-    }
+    const CID &getParentMessageReceipts() const;
+
+    uint64_t height() const;
 
     /**
      * @return parent weight
      */
-    BigInt getParentWeight() const;
+    const BigInt &getParentWeight() const;
 
     /**
      * @brief checks whether tipset contains cid
@@ -75,7 +84,6 @@ namespace fc::primitives::tipset {
 
     TipsetKey key;
     std::vector<block::BlockHeader> blks;  ///< block headers
-    uint64_t height{};                     ///< height
   };
 
   /**
@@ -94,7 +102,7 @@ namespace fc::primitives::tipset {
    */
   bool operator!=(const Tipset &l, const Tipset &r);
 
-  //CBOR_TUPLE(Tipset, cids, blks, height)
+  // CBOR_TUPLE(Tipset, cids, blks, height)
 
   /**
    * @brief change type

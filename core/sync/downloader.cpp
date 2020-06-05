@@ -198,6 +198,10 @@ namespace fc::sync {
 
     OUTCOME_TRY(sync_state, index_db_->getTipsetSyncState(key.hash()));
 
+    if (sync_state == SYNC_STATE_BAD) {
+      return Error::SYNC_BAD_TIPSET;
+    }
+
     if (!needToSync(sync_state)) {
       return outcome::success();
     }

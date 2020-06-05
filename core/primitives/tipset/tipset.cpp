@@ -13,18 +13,65 @@ OUTCOME_CPP_DEFINE_CATEGORY(fc::primitives::tipset, TipsetError, e) {
   using fc::primitives::tipset::TipsetError;
   switch (e) {
     case (TipsetError::NO_BLOCKS):
-      return "Need to have at least one block to create tipset";
+      return "No blocks to create tipset";
     case TipsetError::MISMATCHING_HEIGHTS:
       return "Cannot create tipset, mismatching blocks heights";
     case TipsetError::MISMATCHING_PARENTS:
       return "Cannot create tipset, mismatching block parents";
     case TipsetError::TICKET_HAS_NO_VALUE:
       return "An optional ticket is not initialized";
+    case TipsetError::TICKETS_COLLISION:
+      return "Duplicate tickets in tipset";
+    case TipsetError::BLOCK_ORDER_FAILURE:
+      return "Wrong order of blocks in tipset";
   }
   return "Unknown tipset error";
 }
 
 namespace fc::primitives::tipset {
+
+  outcome::result<Tipset> Tipset::create(TipsetKey key,
+                                         BlocksAvailable blocks) {
+    if (blocks.empty() || !blocks[0].has_value()
+        || key.cids().size() != blocks.size()) {
+      return TipsetError::NO_BLOCKS;
+    }
+    const auto &block0 = blocks[0].value();
+    if (!block0.ticket.has_value()) {
+      return TipsetError::TICKET_HAS_NO_VALUE;
+    }
+    auto height = block0.height;
+
+    std::vector<block::BlockHeader> b;
+    b.reserve(blocks.size());
+    b.push_back(std::move(blocks[0].value()));
+
+    for (size_t i = 1; i < blocks.size(); ++i) {
+      const auto &block_opt = blocks[i];
+      if (!block_opt.has_value()) {
+        return TipsetError::NO_BLOCKS;
+      }
+      const auto &block = block_opt.value();
+      if (!block.ticket.has_value()) {
+        return TipsetError::TICKET_HAS_NO_VALUE;
+      }
+      if (block.height != height) {
+        return TipsetError::MISMATCHING_HEIGHTS;
+      }
+      if (block.parents != b.back().parents) {
+        return TipsetError::MISMATCHING_PARENTS;
+      }
+      if (block.ticket.value() < b.back().ticket.value()) {
+        return TipsetError::BLOCK_ORDER_FAILURE;
+      }
+      if (block.ticket.value() == b.back().ticket.value()) {
+        return TipsetError::TICKETS_COLLISION;
+      }
+      b.push_back(std::move(blocks[i].value()));
+    }
+
+    return Tipset{std::move(key), std::move(b)};
+  }
 
   outcome::result<Tipset> Tipset::create(
       std::vector<block::BlockHeader> blocks) {
@@ -79,7 +126,6 @@ namespace fc::primitives::tipset {
     Tipset ts{};
     std::vector<CID> cids;
 
-    ts.height = height0;
     cids.reserve(items.size());
     ts.blks.reserve(items.size());
 
@@ -116,12 +162,20 @@ namespace fc::primitives::tipset {
     return blks[0].parent_state_root;
   }
 
-  BigInt Tipset::getParentWeight() const {
+  const BigInt &Tipset::getParentWeight() const {
     return blks[0].parent_weight;
   }
 
+  const CID &Tipset::getParentMessageReceipts() const {
+    return blks[0].parent_message_receipts;
+  }
+
+  uint64_t Tipset::height() const {
+    return blks[0].height;
+  }
+
   bool Tipset::contains(const CID &cid) const {
-    const auto& cids = key.cids();
+    const auto &cids = key.cids();
     return std::find(cids.begin(), cids.end(), cid) != std::end(cids);
   }
 

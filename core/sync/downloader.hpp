@@ -26,6 +26,7 @@ namespace fc::sync {
     SYNC_DATA_INTEGRITY_ERROR = 2,
     SYNC_UNEXPECTED_OBJECT_STATE = 3,
     SYNC_NO_PEERS = 4,
+    SYNC_BAD_TIPSET = 5,
   };
 
   using crypto::signature::Signature;
