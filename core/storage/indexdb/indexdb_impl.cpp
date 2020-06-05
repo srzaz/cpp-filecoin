@@ -44,7 +44,8 @@ namespace fc::storage::indexdb {
                                                  uint64_t height) {
       if (tipset_hash.empty() || (sync_state < SYNC_STATE_BAD)
           || (sync_state > SYNC_STATE_SYNCED) || weight.empty()) {
-        log()->error("Bad tipset info for {}", common::hex_lower(tipset_hash));
+        log()->error("Bad tipset info for {}",
+                     primitives::tipset::tipsetHashToString(tipset_hash));
         return boost::none;
       }
       BigInt w;
@@ -69,7 +70,8 @@ namespace fc::storage::indexdb {
                        uint64_t height) {
       if (tipset_hash.empty() || (sync_state < SYNC_STATE_BAD)
           || (sync_state > SYNC_STATE_SYNCED) || weight.empty()) {
-        log()->error("Bad tipset info for {}", common::hex_lower(tipset_hash));
+        log()->error("Bad tipset info for {}",
+                     primitives::tipset::tipsetHashToString(tipset_hash));
         return false;
       }
       BigInt w;
@@ -290,7 +292,7 @@ namespace fc::storage::indexdb {
 
     if (res == 0) {
       log()->debug("newTipset: tipset {} is already known",
-                   common::hex_lower(tipset_hash));
+                   primitives::tipset::tipsetHashToString(tipset_hash));
     }
 
     int seq = 1;
@@ -305,13 +307,13 @@ namespace fc::storage::indexdb {
       }
       if (res == 0) {
         log()->debug("newTipset: block {} is already known",
-                     common::hex_lower(tipset_hash));
+                     primitives::tipset::tipsetHashToString(tipset_hash));
       }
 
       res = db_.execCommand(insert_tipset_block_, tipset_hash, cid_bytes, seq);
       if (res < 0) {
         log()->error("newTipset: cannot link {} and {}",
-                     common::hex_lower(tipset_hash),
+                     primitives::tipset::tipsetHashToString(tipset_hash),
                      toString(cid));
         return Error::INDEXDB_EXECUTE_ERROR;
       }

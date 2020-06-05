@@ -6,11 +6,11 @@
 #ifndef CPP_FILECOIN_STORAGE_INDEXDB_HPP
 #define CPP_FILECOIN_STORAGE_INDEXDB_HPP
 
-#include "tipset_hash.hpp"
+#include "primitives/tipset/tipset_key.hpp"
+#include "primitives/big_int.hpp"
 
 namespace fc::storage::indexdb {
 
-  using Tipset = primitives::tipset::Tipset;
   using TipsetKey = primitives::tipset::TipsetKey;
   using TipsetHash = primitives::tipset::TipsetHash;
   using primitives::BigInt;

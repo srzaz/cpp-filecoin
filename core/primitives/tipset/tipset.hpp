@@ -38,11 +38,6 @@ namespace fc::primitives::tipset {
         std::vector<block::BlockHeader> blocks);
 
     /**
-     * @brief makes key of cids
-     */
-    outcome::result<TipsetKey> makeKey() const;
-
-    /**
      * @return key made of parents
      */
     outcome::result<TipsetKey> getParents() const;
@@ -78,8 +73,7 @@ namespace fc::primitives::tipset {
      */
     bool contains(const CID &cid) const;
 
-    std::vector<CID> cids;                 ///< cids
-    // TODO TipsetKey key;
+    TipsetKey key;
     std::vector<block::BlockHeader> blks;  ///< block headers
     uint64_t height{};                     ///< height
   };
@@ -100,7 +94,7 @@ namespace fc::primitives::tipset {
    */
   bool operator!=(const Tipset &l, const Tipset &r);
 
-  CBOR_TUPLE(Tipset, cids, blks, height)
+  //CBOR_TUPLE(Tipset, cids, blks, height)
 
   /**
    * @brief change type

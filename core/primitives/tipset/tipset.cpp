@@ -77,24 +77,25 @@ namespace fc::primitives::tipset {
               });
 
     Tipset ts{};
+    std::vector<CID> cids;
+
     ts.height = height0;
-    ts.cids.reserve(items.size());
+    cids.reserve(items.size());
     ts.blks.reserve(items.size());
 
     for (auto &[b, c] : items) {
       ts.blks.push_back(std::move(b));
-      ts.cids.push_back(std::move(c));
+      cids.push_back(std::move(c));
     }
+
+    OUTCOME_TRY(key, TipsetKey::create(std::move(cids)));
+    ts.key = std::move(key);
 
     return ts;
   }
 
   outcome::result<TipsetKey> Tipset::getParents() const {
     return TipsetKey::create(blks[0].parents);
-  }
-
-  outcome::result<TipsetKey> Tipset::makeKey() const {
-    return TipsetKey::create(cids);
   }
 
   uint64_t Tipset::getMinTimestamp() const {
@@ -120,6 +121,7 @@ namespace fc::primitives::tipset {
   }
 
   bool Tipset::contains(const CID &cid) const {
+    const auto& cids = key.cids();
     return std::find(cids.begin(), cids.end(), cid) != std::end(cids);
   }
 
