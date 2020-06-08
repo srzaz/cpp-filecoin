@@ -8,9 +8,8 @@
 
 #include <set>
 
-#include <libp2p/protocol/common/scheduler.hpp>
-
 #include "common.hpp"
+#include "block_loader.hpp"
 #include "primitives/tipset/tipset.hpp"
 #include "storage/indexdb/indexdb.hpp"
 #include "storage/ipfs/datastore.hpp"
@@ -22,7 +21,7 @@ namespace fc::sync {
     using BlocksAvailable = std::vector<boost::optional<BlockHeader>>;
 
     outcome::result<BlocksAvailable> loadBlocks(
-        const TipsetKey &key,
+        const std::vector<CID> cids,
         boost::optional<std::reference_wrapper<const PeerId>> preferred_peer);
   };
 
@@ -47,6 +46,8 @@ namespace fc::sync {
         boost::optional<std::reference_wrapper<const PeerId>> preferred_peer);
 
    private:
+    void onBlock(const CID& cid, boost::optional<BlockHeader> bh);
+
     using Wantlist = std::set<CID>;
 
     struct RequestCtx {

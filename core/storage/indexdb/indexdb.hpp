@@ -6,8 +6,8 @@
 #ifndef CPP_FILECOIN_STORAGE_INDEXDB_HPP
 #define CPP_FILECOIN_STORAGE_INDEXDB_HPP
 
-#include "primitives/tipset/tipset_key.hpp"
 #include "primitives/big_int.hpp"
+#include "primitives/tipset/tipset_key.hpp"
 
 namespace fc::storage::indexdb {
 
@@ -91,7 +91,12 @@ namespace fc::storage::indexdb {
     virtual outcome::result<TipsetInfo> getTipsetInfo(
         const TipsetHash &tipset_hash) = 0;
 
-    virtual outcome::result<CIDInfo> getObjectInfo(const CID& cid) = 0;
+    virtual outcome::result<CIDInfo> getObjectInfo(const CID &cid) = 0;
+
+    virtual outcome::result<void> getUnsyncedMessagesOfBlock(
+        const CID &block_cid,
+        const std::function<void(const CID &message_cid, ObjectType type)>
+            &cb) = 0;
 
     /// returns tipset sync state
     virtual outcome::result<SyncState> updateTipsetSyncState(

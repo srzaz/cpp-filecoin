@@ -8,6 +8,7 @@ add_library(sync
     hello.cpp
     common.cpp
     tipset_loader.cpp
+    block_loader.cpp
     #downloader.cpp
     )
 

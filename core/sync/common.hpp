@@ -13,16 +13,18 @@
 namespace fc::sync {
 
   enum class Error {
-    SYNC_WRONG_OBJECT_TYPE = 1,
+    SYNC_NOT_INITIALIZED = 1,
     SYNC_DATA_INTEGRITY_ERROR = 2,
     SYNC_UNEXPECTED_OBJECT_STATE = 3,
     SYNC_NO_PEERS = 4,
     SYNC_BAD_TIPSET = 5,
+    SYNC_BAD_BLOCK = 6,
   };
 
   using crypto::signature::Signature;
   using primitives::block::Block;
   using primitives::block::BlockHeader;
+  using primitives::block::MsgMeta;
   using primitives::block::BlockMsg;
   using primitives::tipset::Tipset;
   using primitives::tipset::TipsetHash;

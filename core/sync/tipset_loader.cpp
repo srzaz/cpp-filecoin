@@ -125,6 +125,10 @@ namespace fc::sync {
       boost::optional<std::reference_wrapper<const PeerId>> preferred_peer) {
     using namespace storage::indexdb;
 
+    if (!initialized_) {
+      return Error::SYNC_NOT_INITIALIZED;
+    }
+
     if (tipset_requests_.count(key.hash()) != 0) {
       // already waiting, do nothing
       return boost::none;
@@ -161,12 +165,35 @@ namespace fc::sync {
       return res.value();
     }
 
+    global_wantlist_.insert(wantlist.begin(), wantlist.end());
+
     RequestCtx ctx(*this, key);
     ctx.wantlist = std::move(wantlist);
     ctx.blocks_filled = std::move(blocks_available);
 
     tipset_requests_.insert({key.hash(), std::move(ctx)});
     return boost::none;
+  }
+
+  void TipsetLoader::onBlock(const CID& cid, boost::optional<BlockHeader> bh) {
+    auto it = global_wantlist_.find(cid);
+    if (it == global_wantlist_.end()) {
+      // not our block
+      return;
+    }
+
+    global_wantlist_.erase(cid);
+
+    if (bh.has_value()) {
+      const auto& value = bh.value();
+      for (auto &[_, ctx] : tipset_requests_) {
+        ctx.onBlockSynced(cid, value);
+      }
+    } else {
+      for (auto &[_, ctx] : tipset_requests_) {
+        ctx.onCidIsNotABlock(cid);
+      }
+    }
   }
 
 }  // namespace fc::sync
