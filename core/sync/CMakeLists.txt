@@ -10,5 +10,6 @@ add_library(sync
     )
 
 target_link_libraries(sync
+    cbor_stream
     p2p::p2p_gossip
     p2p::p2p_identify)
