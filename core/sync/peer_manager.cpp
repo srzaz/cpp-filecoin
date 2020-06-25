@@ -14,7 +14,10 @@
 
 #include "storage/chain/chain_store.hpp"
 
+#include "sync/tipset_loader.hpp"
+
 namespace fc::sync {
+  std::shared_ptr<TipsetLoader> tl;
 
   namespace {
     auto log() {
@@ -87,7 +90,7 @@ namespace fc::sync {
     return cache[peer_id];
   }
 
-  PeerManager::PeerManager(const node::NodeObjects &o, const node::Config &c)
+  PeerManager::PeerManager(const node::NodeObjects &o, const node::Config &c, std::shared_ptr<PubSubGate> psg)
       : node_protocols_({"/fil/hello/1.0.0",
                          "/ipfs/graphsync/1.0.0",
                          "/ipfs/id/1.0.0",
@@ -102,6 +105,8 @@ namespace fc::sync {
         identify_push_protocol_(o.identify_push_protocol),
         identify_delta_protocol_(o.identify_delta_protocol),
         chain_store_(o.chain_store) {
+    tl = std::make_shared<TipsetLoader>(o.scheduler, std::make_shared<BlockLoader>(o.ipfs_datastore, o.scheduler,
+      std::make_shared<ObjectLoader>(o.scheduler, o.ipfs_datastore, psg, o.graphsync, o.host->getId())));
     auto id = host_->getId();
     for (const auto &peer : c.bootstrap_list) {
       if (id != peer.id) {
@@ -169,6 +174,14 @@ namespace fc::sync {
     if (started_) {
       return outcome::success();
     }
+    tl->init([](TipsetHash h, auto _r) {
+      if (!_r) {
+        spdlog::error("tl {} error {} \"{}\"", common::hex_lower(h), _r.error(), _r.error().message());
+      } else {
+        const Tipset &ts{_r.value()};
+        spdlog::info("tl {} ok ", common::hex_lower(h), ts.height());
+      }
+    });
     OUTCOME_TRY(tipset, chain_store_->heaviestTipset());
     OUTCOME_TRY(genesis, chain_store_->getGenesis());
     OUTCOME_TRY(genesis_cid, primitives::cid::getCidOfCbor(genesis));
@@ -361,6 +374,8 @@ namespace fc::sync {
                 fmt::join(toStrings(s.heaviest_tipset), ","),
                 s.heaviest_tipset_height,
                 s.heaviest_tipset_weight.str());
+    OUTCOME_EXCEPT(k, TipsetKey::create(s.heaviest_tipset));
+    OUTCOME_EXCEPT(tl->loadTipset(k, std::cref(peer_id)));
 
     peer_info.current_weight = s.heaviest_tipset_weight;
     postPeerStatus(peer_id);

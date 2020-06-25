@@ -15,6 +15,7 @@
 #include "node/builder.hpp"
 #include "node/config.hpp"
 #include "sync/hello.hpp"
+#include "sync/pubsub_gate.hpp"
 
 namespace fc::sync {
 
@@ -33,7 +34,7 @@ namespace fc::sync {
       std::set<std::string> must_handle_protocols;
     };
 
-    PeerManager(const node::NodeObjects &o, const node::Config &c);
+    PeerManager(const node::NodeObjects &o, const node::Config &c, std::shared_ptr<PubSubGate>);
 
     ~PeerManager();
 

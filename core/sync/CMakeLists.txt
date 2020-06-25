@@ -10,6 +10,7 @@ add_library(sync
     object_loader.cpp
     block_loader.cpp
     tipset_loader.cpp
+    common.cpp
     )
 
 target_link_libraries(sync

@@ -68,7 +68,7 @@ namespace fc::sync {
         SUBSCRIBE_TO_TOPIC(blocks_topic_, blocks_signal_, onBlock);
     heads_subscription_ =
         SUBSCRIBE_TO_TOPIC(heads_topic_, heads_signal_, onHead);
-    blocks_subscription_ = SUBSCRIBE_TO_TOPIC(msgs_topic_, msgs_signal_, onMsg);
+    msgs_subscription_ = SUBSCRIBE_TO_TOPIC(msgs_topic_, msgs_signal_, onMsg);
 
 #undef SUBSCRIBE_TO_TOPIC
 

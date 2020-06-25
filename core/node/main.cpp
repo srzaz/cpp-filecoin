@@ -17,8 +17,10 @@
 #include "storage/ipfs/impl/in_memory_datastore.hpp"
 #include "sync/hello.hpp"
 #include "sync/peer_manager.hpp"
+#include "sync/pubsub_gate.hpp"
 #include "vm/actor/builtin/init/init_actor.hpp"
 #include "vm/state/impl/state_tree_impl.hpp"
+#include "storage/ipfs/graphsync/impl/graphsync_impl.hpp"
 
 // TODO: move
 template <>
@@ -86,7 +88,9 @@ namespace fc::node {
     // TODO: feed cached heaviest tipset
     OUTCOME_EXCEPT(objects.chain_store->addBlock(genesis_block));
 
-    auto peer_manager{std::make_shared<sync::PeerManager>(objects, config)};
+    auto pubsubgate{
+        std::make_shared<sync::PubSubGate>(objects.utc_clock, objects.gossip)};
+    auto peer_manager{std::make_shared<sync::PeerManager>(objects, config, pubsubgate)};
 
     io.post([&] {
       OUTCOME_EXCEPT(host->listen(config.listen_address));
@@ -94,10 +98,10 @@ namespace fc::node {
         host->connect(pi);
       }
 
-      host->start();
-      objects.gossip->start();
+      io.post([&]() { objects.gossip->start(); });
+      pubsubgate->start(config.network_name, "fuhon0");
 
-      // TODO: graphsync start
+      objects.graphsync->start(nullptr);
 
       OUTCOME_EXCEPT(peer_manager->start());
 
@@ -105,6 +109,15 @@ namespace fc::node {
                    config.local_ip_address,
                    config.port,
                    host->getId().toBase58());
+
+      std::thread{[&]() {
+        auto cmd{
+            fmt::format("lotus --repo lotus1 net connect /ip4/{}/tcp/{}/p2p/{}",
+                        config.local_ip_address,
+                        config.port,
+                        host->getId().toBase58())};
+        std::system(cmd.c_str());
+      }}.detach();
 
       // TODO: config port
       api::serve(*objects.api, io, "127.0.0.1", config.port + 1);

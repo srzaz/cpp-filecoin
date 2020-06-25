@@ -88,7 +88,7 @@ namespace fc::sync {
       return outcome::success();
     }
 
-    if (!preferred_peer.has_value() || !default_peer_.has_value()) {
+    if (!preferred_peer.has_value() && !default_peer_.has_value()) {
       return Error::SYNC_NO_PEERS;
     }
 
@@ -129,7 +129,8 @@ namespace fc::sync {
       };
     };
 
-    static const std::vector<storage::ipfs::graphsync::Extension> extensions;
+    static const std::vector<storage::ipfs::graphsync::Extension> extensions{
+        storage::ipfs::graphsync::Extension{"chainsync", {}}};
 
     return graphsync_->makeRequest(peer,
                                    boost::none,
