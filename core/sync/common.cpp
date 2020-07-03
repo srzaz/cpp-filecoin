@@ -5,6 +5,8 @@
 
 #include "common.hpp"
 
-namespace fc::sync {
+OUTCOME_CPP_DEFINE_CATEGORY(fc::sync, Error, e) {
+  return "fc::sync::Error";
+}
 
-}  // namespace fc::sync
+namespace fc::sync {}  // namespace fc::sync

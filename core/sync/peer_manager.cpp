@@ -347,6 +347,7 @@ namespace fc::sync {
 
     peer_info.current_weight = s.heaviest_tipset_weight;
     postPeerStatus(peer_id);
+    on_hello_(peer_id, s);
   }
 
   void PeerManager::onHelloLatencyMessage(
