@@ -49,7 +49,7 @@ namespace fc::node {
   auto readFile(const std::string &path) {
     std::ifstream file{path, std::ios::binary | std::ios::ate};
     if (!file.good()) {
-      outcome::raise(TodoError::ERROR);
+      outcome::raise(TodoError::kError);
     }
     common::Buffer buffer;
     buffer.resize(file.tellg());

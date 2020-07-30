@@ -16,12 +16,13 @@
 namespace fc::primitives::tipset {
 
   enum class TipsetError : int {
-    NO_BLOCKS = 1,        // need to have at least one block to create tipset
-    MISMATCHING_HEIGHTS,  // cannot create tipset, mismatching blocks heights
-    MISMATCHING_PARENTS,  // cannot create tipset, mismatching block parents
-    TICKET_HAS_NO_VALUE,  // optional ticket is not initialized
-    TICKETS_COLLISION,    // duplicate tickets in tipset
-    BLOCK_ORDER_FAILURE,  // wrong order of blocks
+    kNoBlocks = 1,        // need to have at least one block to create tipset
+    kMismatchingHeights,  // cannot create tipset, mismatching blocks heights
+    kMismatchingParents,  // cannot create tipset, mismatching block parents
+    kTicketHasNoValue,    // optional ticket is not initialized
+    kTicketsCollision,    // duplicate tickets in tipset
+    kBlockOrderFailure,   // wrong order of blocks
+    kNoBeacons,
   };
 }
 
@@ -31,7 +32,7 @@ namespace fc::primitives::tipset {
 OUTCOME_HPP_DECLARE_ERROR(fc::primitives::tipset, TipsetError);
 
 namespace fc::primitives::tipset {
-
+  using block::BeaconEntry;
   using block::BlockHeader;
   using crypto::randomness::DomainSeparationTag;
   using crypto::randomness::Randomness;
@@ -63,6 +64,8 @@ namespace fc::primitives::tipset {
                                         const CID &cid);
 
     outcome::result<Tipset> loadParent(Ipld &ipld) const;
+
+    outcome::result<BeaconEntry> latestBeacon(Ipld &ipld) const;
 
     outcome::result<void> visitMessages(
         IpldPtr ipld, const MessageVisitor::Visitor &visitor) const;
@@ -103,7 +106,7 @@ namespace fc::primitives::tipset {
     const BigInt &getParentWeight() const;
 
     /**
-     * @brief checks whether tipset contains cid
+     * @brief checks whether tipset contains block by cid
      * @param cid content identifier to look for
      * @return true if contains, false otherwise
      */
@@ -129,7 +132,7 @@ namespace fc::primitives::tipset {
    */
   bool operator!=(const Tipset &l, const Tipset &r);
 
-  CBOR_ENCODE_TUPLE(Tipset, key.cids(), blks, height())
+  CBOR_TUPLE(Tipset, key.cids(), blks, height())
 
   /**
    * @brief change type

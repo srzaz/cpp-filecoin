@@ -1,4 +1,11 @@
 hunter_config(
+    libarchive
+    URL https://github.com/soramitsu/fuhon-libarchive/archive/hunter-v3.4.3.tar.gz
+    SHA1 0996fd781195df120744164ba5e0033a14c79e06
+    CMAKE_ARGS ENABLE_INSTALL=ON
+)
+
+hunter_config(
     Boost
     VERSION 1.72.0-p1
     CMAKE_ARGS CMAKE_POSITION_INDEPENDENT_CODE=ON
@@ -48,8 +55,8 @@ hunter_config(
 )
 
 hunter_config(libp2p
-    URL https://github.com/soramitsu/libp2p/archive/02589ae52912b9629be715cd2179a0d313bf4f0b.zip
-    SHA1 bbbff0d9678cfc590d69894d871040794327ea8e
+    URL https://github.com/libp2p/cpp-libp2p/archive/9aabc1078f7cd88049a82e2b4987a71c77774819.zip
+    SHA1 adf518271f84c9d92858b61d8f5aedbddda9e4ac
     CMAKE_ARGS TESTING=OFF EXAMPLES=OFF EXPOSE_MOCKS=ON
     KEEP_PACKAGE_SOURCES
     )
