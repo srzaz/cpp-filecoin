@@ -86,16 +86,14 @@ namespace fc::primitives::tipset {
     /**
      * @return parent state root
      */
-    CID getParentStateRoot() const;
+    const CID &getParentStateRoot() const;
 
-    inline CID getParentMessageReceipts() const {
-      return blks[0].parent_message_receipts;
-    }
+    const CID &getParentMessageReceipts() const;
 
     /**
      * @return parent weight
      */
-    BigInt getParentWeight() const;
+    const BigInt &getParentWeight() const;
 
     /**
      * @brief checks whether tipset contains block by cid

@@ -184,11 +184,15 @@ namespace fc::primitives::tipset {
     return blks[0];
   }
 
-  CID Tipset::getParentStateRoot() const {
+  const CID &Tipset::getParentStateRoot() const {
     return blks[0].parent_state_root;
   }
 
-  BigInt Tipset::getParentWeight() const {
+  const CID &Tipset::getParentMessageReceipts() const {
+    return blks[0].parent_message_receipts;
+  }
+
+  const BigInt &Tipset::getParentWeight() const {
     return blks[0].parent_weight;
   }
 
