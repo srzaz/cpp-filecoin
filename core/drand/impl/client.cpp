@@ -22,8 +22,10 @@ namespace fc::drand {
   DrandSyncClientImpl::DrandSyncClientImpl(
       std::string address, boost::optional<std::string> pem_root_certs)
       : address_{std::move(address)},
-        stub_{fc::network::createSecureClient<::drand::Public>(
-            address_, (pem_root_certs ? pem_root_certs.get() : ""))} {}
+        stub_{pem_root_certs
+                  ? network::createSecureClient<::drand::Public>(
+                      address_, *pem_root_certs)
+                  : network::createInsecureClient<::drand::Public>(address_)} {}
 
   DrandSyncClientImpl::DrandSyncClientImpl(
       const std::string &host,

@@ -1,0 +1,52 @@
+#!/bin/zsh
+set -e
+
+_period="5s" # https://golang.org/pkg/time/#ParseDuration
+_port1=3190; _port2=3191 # grpc ports
+_control1=3192; _control2=3193
+_secret="dranddranddranddranddranddranddr"
+
+if ! which drand > /dev/null; then echo "drand executable not found"; echo "https://github.com/drand/drand/releases/tag/v0.8.1"; exit -1; fi
+
+function _prefix() { _1=$1; shift; $@ | sed "s/^/$_1: /"; }
+function _pid() { echo ".$1.pid"; }
+function _kill() { for _1 in "$@"; do _p=$(_pid $_1); if [[ -a $_p ]]; then pkill -P $(cat $_p) 2> /dev/null || true; rm -f $_p; fi; done; }
+function _asyncp() { echo $! > $(_pid $1); }
+function _asyncl() { _1=$1; shift; $@ > ".$_1.log" & _asyncp $_1; }
+function _async() { _1=$1; shift; _prefix $_1 $@ & _asyncp $_1; }
+function _wait() { for _1 in "$@"; do _p=$(_pid $_1); if [[ -a $_p ]]; then wait $(cat $_p) 2> /dev/null || true; rm -f $_p; fi; done; }
+
+function _clean() { _kill drand1 drand2 generate1 generate2 share1 share2; rm -rf drand1 drand2 }
+_clean; TRAPEXIT() { _clean }; TRAPINT() { exit }
+rm -f .generate1.log .generate2.log .share1.log .share2.log
+
+if [[ "$1" = "new" ]]; then
+  _asyncl generate1 drand generate-keypair --folder drand1 --tls-disable 127.0.0.1:$_port1
+  _asyncl generate2 drand generate-keypair --folder drand2 --tls-disable 127.0.0.1:$_port2
+  _wait generate1 generate2
+
+  _async drand1 drand start --folder drand1 --tls-disable --control $_control1
+  _async drand2 drand start --folder drand2 --tls-disable --control $_control2
+  sleep 1
+
+  _asyncl share1 drand share --control $_control1 --secret $_secret --leader --nodes 2 --threshold 2 --period $_period --beacon-delay 1
+  _asyncl share2 drand share --control $_control2 --secret $_secret --tls-disable --connect 127.0.0.1:$_port1 --nodes 2 --threshold 2
+  _wait share1 share2
+
+  _kill drand1 drand2
+  tar -czf drand.tgz drand1/groups drand1/key drand2/groups drand2/key
+elif [[ "$1" = "run" ]]; then
+  if ! [[ -a drand.tgz ]]; then echo "drand.tgz not found"; echo "run '$0 new' first"; exit -1; fi
+  tar -xzf drand.tgz
+  _async drand1 drand start --folder drand1 --tls-disable --control $_control1
+  _async drand2 drand start --folder drand2 --tls-disable --control $_control2
+  read
+else
+  echo "local drand deployment"
+  echo "  '$0 new' - generate new network to drand.tgz"
+  echo "  '$0 run' - run network from drand.tgz"
+  echo ""
+  echo "grpc"
+  echo "  127.0.0.1:$_port1"
+  echo "  127.0.0.1:$_port2"
+fi
