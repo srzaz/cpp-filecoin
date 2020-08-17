@@ -47,7 +47,8 @@ TEST(BlockTest, BlockHeaderCbor) {
   expectEncodeAndReencode(
       block,
       "8f420001f68142f00d81820442f00d81820342f00d81d82a470001000102000242000304d82a4700010001020005d82a4700010001020006d82a4700010001020007f608f609"_unhex);
-  block.ticket = fc::primitives::ticket::Ticket{kSampleBlsSignatureBytes2};
+  block.ticket =
+      fc::primitives::block::Ticket{fc::Buffer{kSampleBlsSignatureBytes2}};
   block.bls_aggregate = fc::crypto::signature::Signature{kSampleBlsSignature};
   block.block_sig = fc::crypto::bls::Signature{kSampleBlsSignatureBytes2};
   expectEncodeAndReencode(

@@ -38,7 +38,7 @@ class BlockValidatorTest : public testing::Test {
   using Interpreter = fc::vm::interpreter::InterpreterMock;
   using BlockHeader = fc::primitives::block::BlockHeader;
   using Address = fc::primitives::address::Address;
-  using Ticket = fc::primitives::ticket::Ticket;
+  using Ticket = fc::primitives::block::Ticket;
   using Signature = fc::crypto::signature::Signature;
   using Secp256k1Signature = fc::crypto::signature::Secp256k1Signature;
 
@@ -71,7 +71,7 @@ class BlockValidatorTest : public testing::Test {
 
   BlockHeader getCorrectBlockHeader() const {
     return {Address::makeFromId(1),
-            Ticket{config::b96},
+            Ticket{fc::Buffer{config::b96}},
             {fc::common::Buffer{"F00D"_unhex}},
             {fc::primitives::block::BeaconEntry{
                 4,

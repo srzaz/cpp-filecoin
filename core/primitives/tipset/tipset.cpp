@@ -6,6 +6,7 @@
 #include "primitives/tipset/tipset.hpp"
 
 #include "common/logger.hpp"
+#include "crypto/blake2/blake2b160.hpp"
 #include "primitives/address/address_codec.hpp"
 #include "primitives/cid/cid_of_cbor.hpp"
 
@@ -89,7 +90,8 @@ namespace fc::primitives::tipset {
                       address::encodeToString(b2.miner));
                   return cid1.toPrettyString("") < cid2.toPrettyString("");
                 }
-                return *t1 < *t2;
+                return crypto::blake2b::blake2b_256(t1->bytes)
+                       < crypto::blake2b::blake2b_256(t2->bytes);
               });
 
     Tipset ts{};
@@ -201,8 +203,7 @@ namespace fc::primitives::tipset {
   }
 
   bool operator==(const Tipset &lhs, const Tipset &rhs) {
-    if (lhs.blks.size() != rhs.blks.size()) return false;
-    return std::equal(lhs.blks.begin(), lhs.blks.end(), rhs.blks.begin());
+    return lhs.blks == rhs.blks;
   }
 
   bool operator!=(const Tipset &l, const Tipset &r) {

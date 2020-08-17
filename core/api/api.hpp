@@ -18,10 +18,8 @@
 #include "markets/storage/deal_protocol.hpp"
 #include "markets/storage/types.hpp"
 #include "primitives/big_int.hpp"
-#include "primitives/block/block.hpp"
 #include "primitives/cid/comm_cid.hpp"
 #include "primitives/rle_bitset/rle_bitset.hpp"
-#include "primitives/ticket/ticket.hpp"
 #include "primitives/tipset/tipset.hpp"
 #include "storage/mpool/mpool.hpp"
 #include "vm/actor/builtin/market/actor.hpp"
@@ -66,7 +64,6 @@ namespace fc::api {
   using primitives::block::BlockTemplate;
   using primitives::block::BlockWithCids;
   using primitives::sector::SectorInfo;
-  using primitives::ticket::Ticket;
   using primitives::tipset::HeadChange;
   using primitives::tipset::Tipset;
   using primitives::tipset::TipsetKey;

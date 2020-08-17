@@ -85,7 +85,7 @@ TEST(ApiJsonTest, CID) {
 }
 
 TEST(ApiJsonTest, Ticket) {
-  expectJson(Ticket{b96}, "{\"VRFProof\":" J96 "}");
+  expectJson(Ticket{Buffer{b96}}, "{\"VRFProof\":" J96 "}");
 }
 
 TEST(ApiJsonTest, TipsetKey) {
@@ -118,7 +118,7 @@ TEST(ApiJsonTest, MsgWait) {
               {"010001020001"_cid},
               {BlockHeader{
                   Address::makeFromId(1),
-                  Ticket{b96},
+                  Ticket{Buffer{b96}},
                   {fc::common::Buffer{"F00D"_unhex}},
                   {fc::primitives::block::BeaconEntry{
                       4,

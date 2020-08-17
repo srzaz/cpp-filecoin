@@ -34,10 +34,10 @@ namespace fc::api {
   using primitives::FsStat;
   using primitives::LocalStorageMeta;
   using primitives::block::ElectionProof;
+  using primitives::block::Ticket;
   using primitives::cid::getCidOfCbor;
   using primitives::sector::PoStProof;
   using primitives::sector::RegisteredProof;
-  using primitives::ticket::Ticket;
   using primitives::tipset::HeadChangeType;
   using rapidjson::Document;
   using rapidjson::Value;

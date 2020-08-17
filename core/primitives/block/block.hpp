@@ -18,8 +18,6 @@
 #include "primitives/big_int.hpp"
 #include "primitives/cid/cid.hpp"
 #include "primitives/sector/sector.hpp"
-#include "primitives/ticket/ticket.hpp"
-#include "primitives/ticket/ticket_codec.hpp"
 #include "vm/message/message.hpp"
 
 namespace fc::primitives::block {
@@ -29,9 +27,16 @@ namespace fc::primitives::block {
   using primitives::BigInt;
   using primitives::address::Address;
   using primitives::sector::PoStProof;
-  using primitives::ticket::Ticket;
   using vm::message::SignedMessage;
   using vm::message::UnsignedMessage;
+
+  struct Ticket {
+    Buffer bytes;
+  };
+  inline bool operator==(const Ticket &lhs, const Ticket &rhs) {
+    return lhs.bytes == rhs.bytes;
+  }
+  CBOR_TUPLE(Ticket, bytes)
 
   struct ElectionProof {
     Buffer vrf_proof;

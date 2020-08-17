@@ -21,7 +21,7 @@ struct TipsetTest : public ::testing::Test {
   using BlockHeader = fc::primitives::block::BlockHeader;
   using CID = fc::CID;
   using Signature = fc::primitives::block::Signature;
-  using Ticket = fc::primitives::ticket::Ticket;
+  using Ticket = fc::primitives::block::Ticket;
   using Tipset = fc::primitives::tipset::Tipset;
   using TipsetError = fc::primitives::tipset::TipsetError;
 
@@ -31,8 +31,8 @@ struct TipsetTest : public ::testing::Test {
     auto bls2 =
         "020101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101"_blob96;
 
-    ticket1 = Ticket{bls1};
-    ticket2 = Ticket{bls2};
+    ticket1 = Ticket{fc::Buffer{bls1}};
+    ticket2 = Ticket{fc::Buffer{bls2}};
 
     BlockHeader block_header{
         fc::primitives::address::Address::makeFromId(1),
@@ -127,14 +127,14 @@ TEST_F(TipsetTest, CreateMismatchingParentsFailure) {
  * @then creation succeeds and methods return expected values
  */
 TEST_F(TipsetTest, CreateSuccess) {
-  EXPECT_OUTCOME_TRUE(ts, Tipset::create({bh1, bh2}));
-  std::vector<CID> cids{cid2, cid1};
+  EXPECT_OUTCOME_TRUE(ts, Tipset::create({bh2, bh1}));
+  std::vector<CID> cids{cid1, cid2};
   ASSERT_EQ(ts.cids, cids);
-  std::vector<BlockHeader> headers{bh2, bh1};
+  std::vector<BlockHeader> headers{bh1, bh2};
   ASSERT_EQ(ts.height, bh1.height);
   ASSERT_EQ(ts.blks, headers);
   ASSERT_EQ(ts.getMinTimestamp(), 7u);
-  ASSERT_EQ(ts.getMinTicketBlock(), bh2);
+  ASSERT_EQ(ts.getMinTicketBlock(), bh1);
   ASSERT_EQ(ts.getParentStateRoot(), parent_state_root);
   ASSERT_EQ(ts.getParentWeight(), parent_weight);
   ASSERT_TRUE(ts.contains(cid1));

@@ -158,7 +158,7 @@ namespace fc::mining {
         return BlockTemplate{
             miner,
             ts.cids,
-            primitives::block::Ticket{ticket_vrf},
+            primitives::block::Ticket{Buffer{ticket_vrf}},
             primitives::block::ElectionProof{Buffer{election_vrf}},
             std::move(info->beacons),
             {},
