@@ -37,8 +37,6 @@ namespace fc::api {
   using primitives::cid::getCidOfCbor;
   using primitives::sector::PoStProof;
   using primitives::sector::RegisteredProof;
-  using primitives::ticket::EPostProof;
-  using primitives::ticket::EPostTicket;
   using primitives::ticket::Ticket;
   using primitives::tipset::HeadChangeType;
   using rapidjson::Document;
@@ -295,20 +293,6 @@ namespace fc::api {
       }
     }
 
-    ENCODE(EPostTicket) {
-      Value j{rapidjson::kObjectType};
-      Set(j, "Partial", gsl::make_span(v.partial));
-      Set(j, "SectorID", v.sector_id);
-      Set(j, "ChallengeIndex", v.challenge_index);
-      return j;
-    }
-
-    DECODE(EPostTicket) {
-      decode(v.partial, Get(j, "Partial"));
-      decode(v.sector_id, Get(j, "SectorID"));
-      decode(v.challenge_index, Get(j, "ChallengeIndex"));
-    }
-
     ENCODE(PoStProof) {
       Value j{rapidjson::kObjectType};
       Set(j, "RegisteredProof", common::to_int(v.registered_proof));
@@ -321,20 +305,6 @@ namespace fc::api {
       decode(registered_proof, Get(j, "RegisteredProof"));
       v.registered_proof = RegisteredProof{registered_proof};
       decode(v.proof, Get(j, "ProofBytes"));
-    }
-
-    ENCODE(EPostProof) {
-      Value j{rapidjson::kObjectType};
-      Set(j, "Proofs", v.proofs);
-      Set(j, "PostRand", gsl::make_span(v.post_rand));
-      Set(j, "Candidates", v.candidates);
-      return j;
-    }
-
-    DECODE(EPostProof) {
-      decode(v.proofs, Get(j, "Proofs"));
-      decode(v.post_rand, Get(j, "PostRand"));
-      decode(v.candidates, Get(j, "Candidates"));
     }
 
     ENCODE(BigInt) {

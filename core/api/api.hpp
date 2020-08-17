@@ -21,7 +21,6 @@
 #include "primitives/block/block.hpp"
 #include "primitives/cid/comm_cid.hpp"
 #include "primitives/rle_bitset/rle_bitset.hpp"
-#include "primitives/ticket/epost_ticket.hpp"
 #include "primitives/ticket/ticket.hpp"
 #include "primitives/tipset/tipset.hpp"
 #include "storage/mpool/mpool.hpp"
@@ -67,7 +66,6 @@ namespace fc::api {
   using primitives::block::BlockTemplate;
   using primitives::block::BlockWithCids;
   using primitives::sector::SectorInfo;
-  using primitives::ticket::EPostProof;
   using primitives::ticket::Ticket;
   using primitives::tipset::HeadChange;
   using primitives::tipset::Tipset;

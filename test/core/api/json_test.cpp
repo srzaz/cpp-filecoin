@@ -16,8 +16,6 @@ using fc::api::BigInt;
 using fc::api::BlockHeader;
 using fc::api::BlsSignature;
 using fc::api::Buffer;
-using fc::api::EPostProof;
-using fc::api::EPostTicket;
 using fc::api::MsgWait;
 using fc::api::RleBitset;
 using fc::api::Secp256k1Signature;
@@ -104,20 +102,6 @@ TEST(ApiJsonTest, Signature) {
   expectJson(Signature{BlsSignature{b96}}, "{\"Type\":2,\"Data\":" J96 "}");
   expectJson(Signature{Secp256k1Signature{b65}},
              "{\"Type\":1,\"Data\":" J65 "}");
-}
-
-TEST(ApiJsonTest, EPostProof) {
-  expectJson(
-      EPostProof{
-          {fc::primitives::sector::PoStProof{
-              fc::primitives::sector::RegisteredProof::StackedDRG2KiBSeal,
-              "DEAD"_unhex,
-          }},
-          b96,
-          {EPostTicket{b32, 1, 2}}},
-      "{\"Proofs\":[{\"RegisteredProof\":3,\"ProofBytes\":\"3q0=\"}],"
-      "\"PostRand\":" J96 ",\"Candidates\":[{\"Partial\":" J32
-      ",\"SectorID\":1,\"ChallengeIndex\":2}]}");
 }
 
 TEST(ApiJsonTest, BigInt) {

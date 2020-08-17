@@ -17,8 +17,7 @@
 #include "primitives/address/address_codec.hpp"
 #include "primitives/big_int.hpp"
 #include "primitives/cid/cid.hpp"
-#include "primitives/ticket/epost_ticket.hpp"
-#include "primitives/ticket/epost_ticket_codec.hpp"
+#include "primitives/sector/sector.hpp"
 #include "primitives/ticket/ticket.hpp"
 #include "primitives/ticket/ticket_codec.hpp"
 #include "vm/message/message.hpp"
@@ -30,7 +29,6 @@ namespace fc::primitives::block {
   using primitives::BigInt;
   using primitives::address::Address;
   using primitives::sector::PoStProof;
-  using primitives::ticket::EPostProof;
   using primitives::ticket::Ticket;
   using vm::message::SignedMessage;
   using vm::message::UnsignedMessage;

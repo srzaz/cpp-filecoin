@@ -3,9 +3,7 @@
 
 add_library(tickets
     ticket.cpp
-    epost_ticket.cpp
     ticket_codec.cpp
-    epost_ticket_codec.cpp
     )
 target_link_libraries(tickets
     blob

@@ -10,7 +10,6 @@ add_subdirectory(cid)
 add_subdirectory(piece)
 add_subdirectory(rle_bitset)
 add_subdirectory(sector_file)
-add_subdirectory(ticket)
 add_subdirectory(tipset)
 
 addtest(big_int_test
