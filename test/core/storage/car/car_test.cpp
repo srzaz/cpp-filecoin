@@ -34,7 +34,7 @@ TEST(CarTest, LoadSuccess) {
   EXPECT_THAT(
       roots,
       testing::ElementsAre(
-          "0171a0e402202d4c00840d4227f198ec6c5343b8c70af7f008a7775d67393d10430ea2fa012f"_cid));
+          "0171a0e40220da63e376d139abc22622252b2c9346a85d0daee14a04128626ac58850685875f"_cid));
 }
 
 /**

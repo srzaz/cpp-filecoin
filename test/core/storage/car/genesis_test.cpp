@@ -71,9 +71,11 @@ TEST(GenesisTest, Decode) {
       EXPECT_OUTCOME_TRUE_1(
           ipld->getCbor<fc::vm::actor::builtin::cron::State>(actor.head));
     } else if (actor.code == fc::vm::actor::kInitCodeCid) {
-      EXPECT_OUTCOME_TRUE_1(
+      EXPECT_OUTCOME_TRUE(
+          state,
           ipld->getCbor<fc::vm::actor::builtin::init::InitActorState>(
               actor.head));
+      EXPECT_OUTCOME_TRUE_1(state.address_map.visit(nop));
     } else if (actor.code == fc::vm::actor::kRewardActorCodeID) {
       EXPECT_OUTCOME_TRUE_1(
           ipld->getCbor<fc::vm::actor::builtin::reward::State>(actor.head));

@@ -14,7 +14,8 @@
 
 using fc::primitives::tipset::Tipset;
 
-TEST(ChainsTest, StoreDeal) {
+// TODO: regenerate car
+TEST(ChainsTest, DISABLED_StoreDeal) {
   auto ipld{std::make_shared<fc::storage::ipfs::InMemoryDatastore>()};
   auto car{readFile(resourcePath("chain-store-deal.car"))};
   EXPECT_OUTCOME_TRUE(head, fc::storage::car::loadCar(*ipld, car));
