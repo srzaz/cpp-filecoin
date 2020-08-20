@@ -6,6 +6,7 @@
 #ifndef CPP_FILECOIN_VM_ACTOR_BUILTIN_STORAGE_POWER_ACTOR_HPP
 #define CPP_FILECOIN_VM_ACTOR_BUILTIN_STORAGE_POWER_ACTOR_HPP
 
+#include "common/libp2p/multi/cbor_multiaddress.hpp"
 #include "common/libp2p/peer/cbor_peer_id.hpp"
 #include "primitives/sector/sector.hpp"
 #include "primitives/types.hpp"
@@ -17,6 +18,7 @@ namespace fc::vm::actor::builtin::storage_power {
   using primitives::SectorStorageWeightDesc;
   using primitives::TokenAmount;
   using primitives::sector::RegisteredProof;
+  using primitives::sector::SealVerifyInfo2;
 
   struct Construct : ActorMethodBase<1> {
     ACTOR_METHOD_DECL();
@@ -27,6 +29,7 @@ namespace fc::vm::actor::builtin::storage_power {
       Address owner, worker;
       RegisteredProof seal_proof_type;
       PeerId peer_id{codec::cbor::kDefaultT<PeerId>()};
+      std::vector<Multiaddress> addresses;
     };
 
     struct Result {
@@ -36,7 +39,8 @@ namespace fc::vm::actor::builtin::storage_power {
     };
     ACTOR_METHOD_DECL();
   };
-  CBOR_TUPLE(CreateMiner::Params, owner, worker, seal_proof_type, peer_id)
+  CBOR_TUPLE(
+      CreateMiner::Params, owner, worker, seal_proof_type, peer_id, addresses)
   CBOR_TUPLE(CreateMiner::Result, id_address, robust_address)
 
   struct DeleteMiner : ActorMethodBase<3> {
@@ -111,6 +115,11 @@ namespace fc::vm::actor::builtin::storage_power {
 
   struct OnConsensusFault : ActorMethodBase<12> {
     using Params = TokenAmount;
+    ACTOR_METHOD_DECL();
+  };
+
+  struct SubmitPoRepForBulkVerify : ActorMethodBase<13> {
+    using Params = SealVerifyInfo2;
     ACTOR_METHOD_DECL();
   };
 

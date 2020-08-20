@@ -13,6 +13,8 @@
 #include "vm/actor/builtin/storage_power/storage_power_actor_state.hpp"
 
 namespace fc::vm::actor::builtin::storage_power {
+  using primitives::SectorNumber;
+
   outcome::result<TokenAmount> computeInitialPledge(
       Runtime &runtime, State &state, const SectorStorageWeightDesc &weight) {
     OUTCOME_TRY(
@@ -26,33 +28,72 @@ namespace fc::vm::actor::builtin::storage_power {
                                   epoch_reward);
   }
 
-  outcome::result<void> processDeferredCronEvents(Runtime &runtime,
-                                                  State &state) {
+  outcome::result<void> processDeferredCronEvents(Runtime &runtime) {
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<State>());
     auto now{runtime.getCurrentEpoch()};
+    std::vector<CronEvent> pending;
     for (auto epoch = state.last_epoch_tick + 1; epoch <= now; ++epoch) {
       OUTCOME_TRY(events, state.cron_event_queue.tryGet(epoch));
       if (events) {
         OUTCOME_TRY(events->visit([&](auto, auto &event) {
-          auto res{runtime.send(event.miner_address,
-                                miner::OnDeferredCronEvent::Number,
-                                MethodParams{event.callback_payload},
-                                0)};
-          if (!res) {
-            spdlog::warn(
-                "PowerActor.processDeferredCronEvents: error {} \"{}\", epoch "
-                "{}, miner {}, payload {}",
-                res.error(),
-                res.error().message(),
-                now,
-                event.miner_address,
-                common::hex_lower(event.callback_payload));
-          }
+          pending.push_back(event);
           return outcome::success();
         }));
         OUTCOME_TRY(state.cron_event_queue.remove(epoch));
       }
     }
     state.last_epoch_tick = now;
+    OUTCOME_TRY(runtime.commitState(state));
+
+    for (auto &event : pending) {
+      auto res{runtime.send(event.miner_address,
+                            miner::OnDeferredCronEvent::Number,
+                            MethodParams{event.callback_payload},
+                            0)};
+      if (!res) {
+        spdlog::warn(
+            "PowerActor.processDeferredCronEvents: error {} \"{}\", epoch "
+            "{}, miner {}, payload {}",
+            res.error(),
+            res.error().message(),
+            now,
+            event.miner_address,
+            common::hex_lower(event.callback_payload));
+      }
+    }
+    return outcome::success();
+  }
+
+  outcome::result<void> processBatchProofVerifies(Runtime &runtime) {
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<State>());
+    Runtime::MinerSeals miner_seals;
+    if (state.proof_validation_batch) {
+      OUTCOME_TRY(state.proof_validation_batch->visit(
+          [&](auto &miner, auto array) -> outcome::result<void> {
+            OUTCOME_TRY(seals, array.values());
+            miner_seals.emplace_back(miner, std::move(seals));
+            return outcome::success();
+          }));
+      state.proof_validation_batch.reset();
+    }
+    OUTCOME_TRY(runtime.commitState(state));
+
+    OUTCOME_TRY(miner_bools, runtime.batchVerifySeals(miner_seals));
+    auto _bools{miner_bools.begin()};
+    for (auto &[miner, seals] : miner_seals) {
+      miner::ConfirmSectorProofsValid::Params params;
+      std::set<SectorNumber> sectors;
+      auto seal{seals.begin()};
+      for (auto verified : _bools->second) {
+        if (verified && sectors.insert(seal->sector.sector).second) {
+          params.sectors.push_back(seal->sector.sector);
+        }
+        ++seal;
+      }
+      OUTCOME_TRY(
+          runtime.sendM<miner::ConfirmSectorProofsValid>(miner, params, 0));
+      ++_bools;
+    }
     return outcome::success();
   }
 
@@ -98,7 +139,8 @@ namespace fc::vm::actor::builtin::storage_power {
         encodeActorParams(miner::Construct::Params{params.owner,
                                                    params.worker,
                                                    params.seal_proof_type,
-                                                   params.peer_id}));
+                                                   params.peer_id,
+                                                   params.addresses}));
     OUTCOME_TRY(addresses_created,
                 runtime.sendM<init::Exec>(kInitAddress,
                                           {kStorageMinerCodeCid, miner_params},
@@ -179,9 +221,10 @@ namespace fc::vm::actor::builtin::storage_power {
 
   ACTOR_METHOD_IMPL(OnEpochTickEnd) {
     OUTCOME_TRY(runtime.validateImmediateCallerIs(kCronAddress));
+    OUTCOME_TRY(processDeferredCronEvents(runtime));
+    OUTCOME_TRY(processBatchProofVerifies(runtime));
+
     OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<State>());
-    OUTCOME_TRY(processDeferredCronEvents(runtime, state));
-    OUTCOME_TRY(runtime.commitState(state));
     OUTCOME_TRY(runtime.sendM<reward::UpdateNetworkKPI>(
         kRewardAddress, state.total_raw_power, 0));
     return outcome::success();
@@ -210,6 +253,18 @@ namespace fc::vm::actor::builtin::storage_power {
     return outcome::success();
   }
 
+  ACTOR_METHOD_IMPL(SubmitPoRepForBulkVerify) {
+    OUTCOME_TRY(runtime.validateImmediateCallerIsMiner());
+    OUTCOME_TRY(state, runtime.getCurrentActorStateCbor<State>());
+    if (!state.proof_validation_batch) {
+      state.proof_validation_batch.reset({runtime});
+    }
+    OUTCOME_TRY(adt::Multimap::append(
+        *state.proof_validation_batch, runtime.getImmediateCaller(), params));
+    OUTCOME_TRY(runtime.commitState(state));
+    return outcome::success();
+  }
+
   const ActorExports exports{
       exportMethod<Construct>(),
       exportMethod<CreateMiner>(),
@@ -223,5 +278,6 @@ namespace fc::vm::actor::builtin::storage_power {
       exportMethod<OnEpochTickEnd>(),
       exportMethod<UpdatePledgeTotal>(),
       exportMethod<OnConsensusFault>(),
+      exportMethod<SubmitPoRepForBulkVerify>(),
   };
 }  // namespace fc::vm::actor::builtin::storage_power

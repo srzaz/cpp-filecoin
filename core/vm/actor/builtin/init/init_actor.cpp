@@ -19,24 +19,23 @@ namespace fc::vm::actor::builtin::init {
   }
 
   ACTOR_METHOD_IMPL(Exec) {
-    if (!isBuiltinActor(params.code)) {
-      return VMExitCode::kInitActorNotBuiltinActor;
-    }
-    if (isSingletonActor(params.code)) {
-      return VMExitCode::kInitActorSingletonActor;
+    OUTCOME_TRY(caller, runtime.getActorCodeID(runtime.getImmediateCaller()));
+    if ((params.code != kStorageMinerCodeCid || caller != kStoragePowerCodeCid)
+        && params.code != kPaymentChannelCodeCid
+        && params.code != kMultisigCodeCid) {
+      return VMExitCode::kErrForbidden;
     }
     OUTCOME_TRY(runtime.chargeGas(runtime::kInitActorExecCost));
-    auto &message = runtime.getMessage().get();
-    auto actor_address{Address::makeActorExec(
-        Buffer{primitives::address::encode(message.from)}.putUint64(
-            message.nonce))};
+    OUTCOME_TRY(actor_address, runtime.newActorAddress());
     OUTCOME_TRY(init_actor, runtime.getCurrentActorStateCbor<InitActorState>());
     OUTCOME_TRY(id_address, init_actor.addActor(actor_address));
+    OUTCOME_TRY(runtime.commitState(init_actor));
     OUTCOME_TRY(runtime.createActor(id_address,
                                     Actor{params.code, kEmptyObjectCid, 0, 0}));
-    OUTCOME_TRY(runtime.send(
-        id_address, kConstructorMethodNumber, params.params, message.value));
-    OUTCOME_TRY(runtime.commitState(init_actor));
+    OUTCOME_TRY(runtime.send(id_address,
+                             kConstructorMethodNumber,
+                             params.params,
+                             runtime.getValueReceived()));
     return Result{id_address, actor_address};
   }
 

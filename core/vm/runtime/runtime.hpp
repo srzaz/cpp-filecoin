@@ -43,6 +43,7 @@ namespace fc::vm::runtime {
   using primitives::piece::PieceInfo;
   using primitives::sector::RegisteredProof;
   using primitives::sector::SealVerifyInfo;
+  using primitives::sector::SealVerifyInfo2;
   using primitives::sector::WindowPoStVerifyInfo;
   using storage::ipfs::IpfsDatastore;
 
@@ -99,6 +100,8 @@ namespace fc::vm::runtime {
                                                    MethodParams params,
                                                    BigInt value) = 0;
 
+    virtual outcome::result<Address> newActorAddress() = 0;
+
     /**
      * @brief Creates an actor in the state tree, with empty state. May only be
      * called by InitActor
@@ -131,7 +134,7 @@ namespace fc::vm::runtime {
     virtual outcome::result<void> chargeGas(GasAmount amount) = 0;
 
     /// Get current actor state root CID
-    virtual CID getCurrentActorState() = 0;
+    virtual outcome::result<CID> getCurrentActorState() = 0;
 
     /// Update actor state CID
     virtual outcome::result<void> commit(const CID &new_state) = 0;
@@ -151,6 +154,12 @@ namespace fc::vm::runtime {
 
     /// Verify seal
     virtual outcome::result<bool> verifySeal(const SealVerifyInfo &info) = 0;
+
+    using MinerSeals =
+        std::vector<std::pair<Address, std::vector<SealVerifyInfo2>>>;
+    using MinerBools = std::vector<std::pair<Address, std::vector<bool>>>;
+    virtual outcome::result<MinerBools> batchVerifySeals(
+        const MinerSeals &miner_seals) = 0;
 
     /// Compute unsealed sector cid
     virtual outcome::result<CID> computeUnsealedSectorCid(
@@ -212,7 +221,8 @@ namespace fc::vm::runtime {
     /// Get decoded current actor state
     template <typename T>
     outcome::result<T> getCurrentActorStateCbor() {
-      return getIpfsDatastore()->getCbor<T>(getCurrentActorState());
+      OUTCOME_TRY(head, getCurrentActorState());
+      return getIpfsDatastore()->getCbor<T>(head);
     }
 
     /**

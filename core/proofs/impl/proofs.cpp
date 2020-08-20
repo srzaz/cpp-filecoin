@@ -507,7 +507,7 @@ namespace fc::proofs {
                                   prover_id,
                                   c32ByteArray(info.randomness),
                                   c32ByteArray(info.interactive_randomness),
-                                  info.info.sector,
+                                  info.sector.sector,
                                   info.info.proof.data(),
                                   info.info.proof.size()),
                   fil_destroy_verify_seal_response);
@@ -839,28 +839,17 @@ namespace fc::proofs {
                                        ActorId miner_id,
                                        const Ticket &ticket,
                                        const UnsealedCID &unsealed_cid) {
-    OUTCOME_TRY(c_proof_type, cRegisteredSealProof(proof_type));
-
-    OUTCOME_TRY(comm_d, CIDToDataCommitmentV1(unsealed_cid));
-    auto prover_id = toProverID(miner_id);
-
-    auto res_ptr = ffi::wrap(fil_unseal(c_proof_type,
-                                        cache_dir_path.c_str(),
-                                        sealed_sector_path.c_str(),
-                                        unseal_output_path.c_str(),
-                                        sector_num,
-                                        prover_id,
-                                        c32ByteArray(ticket),
-                                        c32ByteArray(comm_d)),
-                             fil_destroy_unseal_response);
-
-    if (res_ptr->status_code != 0) {
-      logger_->error("unseal: " + std::string(res_ptr->error_msg));
-
-      return ProofsError::kUnknown;
-    }
-
-    return outcome::success();
+    OUTCOME_TRY(size, primitives::sector::getSectorSize(proof_type));
+    return unsealRange(proof_type,
+                       cache_dir_path,
+                       sealed_sector_path,
+                       unseal_output_path,
+                       sector_num,
+                       miner_id,
+                       ticket,
+                       unsealed_cid,
+                       0,
+                       PaddedPieceSize{size}.unpadded());
   }
 
   outcome::result<void> Proofs::unsealRange(
@@ -878,11 +867,20 @@ namespace fc::proofs {
 
     OUTCOME_TRY(comm_d, CIDToDataCommitmentV1(unsealed_cid));
 
+    PieceData sealed{sealed_sector_path, O_RDONLY};
+    if (!sealed.isOpened()) {
+      return ProofsError::kCannotOpenFile;
+    }
+    PieceData unsealed{unseal_output_path};
+    if (!unsealed.isOpened()) {
+      return ProofsError::kCannotCreateUnsealedFile;
+    }
+
     auto prover_id = toProverID(miner_id);
     auto res_ptr = ffi::wrap(fil_unseal_range(c_proof_type,
                                               cache_dir_path.c_str(),
-                                              sealed_sector_path.c_str(),
-                                              unseal_output_path.c_str(),
+                                              sealed.getFd(),
+                                              unsealed.getFd(),
                                               sector_num,
                                               prover_id,
                                               c32ByteArray(ticket),

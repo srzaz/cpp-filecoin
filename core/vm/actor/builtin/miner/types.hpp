@@ -188,6 +188,7 @@ namespace fc::vm::actor::builtin::miner {
     adt::Array<RleBitset> fault_epochs;
     RleBitset recoveries;
     RleBitset post_submissions;  // set of partition indices
+    uint64_t next_faults_deadline;
 
     DeadlineInfo deadlineInfo(ChainEpoch now) const;
     outcome::result<void> addFaults(const RleBitset &sectors, ChainEpoch epoch);
@@ -228,7 +229,8 @@ namespace fc::vm::actor::builtin::miner {
              fault_set,
              fault_epochs,
              recoveries,
-             post_submissions)
+             post_submissions,
+             next_faults_deadline)
   using MinerActorState = State;
 
   enum class CronEventType {

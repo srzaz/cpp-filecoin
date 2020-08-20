@@ -40,7 +40,7 @@ namespace fc::vm::runtime {
                                                    MethodParams params,
                                                    BigInt value));
 
-    MOCK_METHOD0(createNewActorAddress, Address());
+    MOCK_METHOD0(newActorAddress, outcome::result<Address>());
 
     MOCK_METHOD2(createActor,
                  outcome::result<void>(const Address &address,
@@ -54,7 +54,7 @@ namespace fc::vm::runtime {
 
     MOCK_METHOD1(chargeGas, outcome::result<void>(GasAmount amount));
 
-    MOCK_METHOD0(getCurrentActorState, CID());
+    MOCK_METHOD0(getCurrentActorState, outcome::result<CID>());
 
     MOCK_METHOD1(commit, outcome::result<void>(const CID &new_state));
 
@@ -70,6 +70,8 @@ namespace fc::vm::runtime {
                  outcome::result<bool>(const WindowPoStVerifyInfo &info));
 
     MOCK_METHOD1(verifySeal, outcome::result<bool>(const SealVerifyInfo &info));
+    MOCK_METHOD1(batchVerifySeals,
+                 outcome::result<MinerBools>(const MinerSeals &miner_seals));
 
     MOCK_METHOD2(computeUnsealedSectorCid,
                  outcome::result<CID>(RegisteredProof,

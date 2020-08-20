@@ -21,13 +21,11 @@ namespace fc::vm::runtime {
 
   RuntimeImpl::RuntimeImpl(std::shared_ptr<Execution> execution,
                            UnsignedMessage message,
-                           const Address &caller_id,
-                           CID current_actor_state)
+                           const Address &caller_id)
       : execution_{std::move(execution)},
         state_tree_{execution_->state_tree},
         message_{std::move(message)},
-        caller_id{caller_id},
-        current_actor_state_{std::move(current_actor_state)} {}
+        caller_id{caller_id} {}
 
   ChainEpoch RuntimeImpl::getCurrentEpoch() const {
     return execution_->env->tipset.height;
@@ -78,8 +76,29 @@ namespace fc::vm::runtime {
         {to_address, message_.to, {}, value, {}, {}, method_number, params});
   }
 
+  outcome::result<Address> RuntimeImpl::newActorAddress() {
+    auto origin{execution_->origin};
+    if (!origin.isKeyType()) {
+      OUTCOME_TRY(
+          account,
+          state_tree_->state<actor::builtin::account::AccountActorState>(
+              origin));
+      origin = account.address;
+    }
+    OUTCOME_TRY(seed, codec::cbor::encode(origin));
+    seed.putUint64(execution_->origin_nonce);
+    seed.putUint64(execution_->actors_created);
+    ++execution_->actors_created;
+    return Address::makeActorExec(seed);
+  }
+
   fc::outcome::result<void> RuntimeImpl::createActor(const Address &address,
                                                      const Actor &actor) {
+    if (!isBuiltinActor(actor.code) || isSingletonActor(actor.code)
+        || state_tree_->get(address)) {
+      return VMExitCode::kSysErrorIllegalArgument;
+    }
+    OUTCOME_TRY(chargeGas(execution_->env->pricelist.onCreateActor()));
     OUTCOME_TRY(state_tree_->set(address, actor));
     return fc::outcome::success();
   }
@@ -100,12 +119,15 @@ namespace fc::vm::runtime {
     return message_;
   }
 
-  CID RuntimeImpl::getCurrentActorState() {
-    return current_actor_state_;
+  outcome::result<CID> RuntimeImpl::getCurrentActorState() {
+    OUTCOME_TRY(actor, state_tree_->get(getCurrentReceiver()));
+    return actor.head;
   }
 
   fc::outcome::result<void> RuntimeImpl::commit(const CID &new_state) {
-    current_actor_state_ = new_state;
+    OUTCOME_TRY(actor, state_tree_->get(getCurrentReceiver()));
+    actor.head = new_state;
+    OUTCOME_TRY(state_tree_->set(getCurrentReceiver(), actor));
     return outcome::success();
   }
 
@@ -150,6 +172,37 @@ namespace fc::vm::runtime {
       const SealVerifyInfo &info) {
     OUTCOME_TRY(chargeGas(execution_->env->pricelist.onVerifySeal()));
     return proofs::Proofs::verifySeal(info);
+  }
+
+  outcome::result<Runtime::MinerBools> RuntimeImpl::batchVerifySeals(
+      const MinerSeals &miner_seals) {
+    // TODO: threads
+    MinerBools miner_bools;
+    for (auto &[miner, seals] : miner_seals) {
+      auto &bools{miner_bools.emplace_back(miner, std::vector<bool>{}).second};
+      for (auto &seal : seals) {
+        // TODO: use SealVerifyInfo2
+        OUTCOME_TRY(verified,
+                    proofs::Proofs::verifySeal({
+                        .sector = seal.sector,
+                        .info =
+                            {
+                                .sealed_cid = seal.sealed_cid,
+                                .interactive_epoch = {},
+                                .registered_proof = seal.seal_proof,
+                                .proof = seal.proof,
+                                .deals = {},
+                                .sector = {},
+                                .seal_rand_epoch = {},
+                            },
+                        .randomness = seal.randomness,
+                        .interactive_randomness = seal.interactive_randomness,
+                        .unsealed_cid = seal.unsealed_cid,
+                    }));
+        bools.push_back(verified);
+      }
+    }
+    return miner_bools;
   }
 
   fc::outcome::result<fc::CID> RuntimeImpl::computeUnsealedSectorCid(

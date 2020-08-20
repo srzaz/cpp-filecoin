@@ -9,6 +9,7 @@
 #include "adt/address_key.hpp"
 #include "adt/multimap.hpp"
 #include "adt/uvarint_key.hpp"
+#include "primitives/sector/sector.hpp"
 #include "primitives/types.hpp"
 
 namespace fc::vm::actor::builtin::storage_power {
@@ -17,6 +18,7 @@ namespace fc::vm::actor::builtin::storage_power {
   using primitives::StoragePower;
   using primitives::TokenAmount;
   using primitives::address::Address;
+  using primitives::sector::SealVerifyInfo2;
   using ChainEpochKeyer = adt::VarintKeyer;
 
   struct Claim {
@@ -50,6 +52,8 @@ namespace fc::vm::actor::builtin::storage_power {
     ChainEpoch last_epoch_tick;
     adt::Map<Claim, adt::AddressKeyer> claims;
     size_t num_miners_meeting_min_power;
+    boost::optional<adt::Map<adt::Array<SealVerifyInfo2>, adt::AddressKeyer>>
+        proof_validation_batch;
   };
 
   using StoragePowerActorState = State;
@@ -63,7 +67,8 @@ namespace fc::vm::actor::builtin::storage_power {
              cron_event_queue,
              last_epoch_tick,
              claims,
-             num_miners_meeting_min_power)
+             num_miners_meeting_min_power,
+             proof_validation_batch)
 
 }  // namespace fc::vm::actor::builtin::storage_power
 
@@ -75,6 +80,9 @@ namespace fc {
                      const Visitor &visit) {
       visit(state.cron_event_queue);
       visit(state.claims);
+      if (state.proof_validation_batch) {
+        visit(*state.proof_validation_batch);
+      }
     }
   };
 }  // namespace fc

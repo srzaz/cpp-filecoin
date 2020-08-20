@@ -20,13 +20,18 @@ namespace fc::vm::runtime {
       return size * 8;
     }
     GasAmount onMethodInvocation(TokenAmount value, uint64_t method) const {
-      return 5 + (value != 0 ? 5 : 0) + (method != 0 ? 10 : 0);
+      // LOTUS-COMPAT: value compared by pointer
+      auto has_value{true};
+      return 5 + (has_value ? 5 : 0) + (method != 0 ? 10 : 0);
     }
     GasAmount onIpldGet(size_t size) const {
       return 10 + size * 1;
     }
     GasAmount onIpldPut(size_t size) const {
       return 20 + size * 2;
+    }
+    GasAmount onCreateActor() const {
+      return 40 + 500;
     }
     GasAmount onVerifySignature(size_t size) const {
       return 2 + size * 3;

@@ -61,6 +61,8 @@ namespace fc::vm::runtime {
     GasAmount gas_used;
     GasAmount gas_limit;
     Address origin;
+    uint64_t origin_nonce;
+    size_t actors_created{};
   };
 
   struct ChargingIpld : public Ipld,

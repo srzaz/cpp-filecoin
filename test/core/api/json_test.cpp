@@ -149,7 +149,7 @@ TEST(ApiJsonTest, MsgWait) {
       "\"VRFProof\":" J96
       "},\"ElectionProof\":{\"VRFProof\":\"8A0=\"},\"BeaconEntries\":[{"
       "\"Round\":4,\"Data\":\"8A0=\"}],\"WinPoStProof\":[{\"RegisteredProof\":"
-      "3,\"ProofBytes\":\"8A0=\"}],\"Parents\":[{\"/"
+      "0,\"ProofBytes\":\"8A0=\"}],\"Parents\":[{\"/"
       "\":\"baeaacaqaai\"}],\"ParentWeight\":\"3\",\"Height\":4,"
       "\"ParentStateRoot\":{\"/"
       "\":\"baeaacaqaau\"},\"ParentMessageReceipts\":{\"/"

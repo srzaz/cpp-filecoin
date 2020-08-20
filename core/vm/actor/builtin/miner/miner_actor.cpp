@@ -298,6 +298,7 @@ namespace fc::vm::actor::builtin::miner {
                          ChainEpoch period_start) {
     auto [detected, recoveries] =
         computeFaultsFromMissingPoSts(state, deadlines, before_deadline);
+    state.next_faults_deadline = before_deadline % kWPoStPeriodDeadlines;
     OUTCOME_TRY(state.addFaults(detected, period_start));
     for (auto sector : recoveries) {
       state.recoveries.erase(sector);
@@ -484,17 +485,19 @@ namespace fc::vm::actor::builtin::miner {
         runtime.getRandomness(DomainSeparationTag::InteractiveSealChallengeSeed,
                               info.interactive_epoch,
                               seed));
-    OUTCOME_TRY(runtime.verifySeal({
-        .sector =
-            {
-                .miner = miner.getId(),
-                .sector = info.sector,
-            },
-        .info = info,
-        .randomness = randomness,
-        .interactive_randomness = interactive_randomness,
-        .unsealed_cid = comm_d,
-    }));
+    OUTCOME_TRY(runtime.sendM<storage_power::SubmitPoRepForBulkVerify>(
+        kStoragePowerAddress,
+        {
+            .seal_proof = info.registered_proof,
+            .sector = {.miner = miner.getId(), .sector = info.sector},
+            .deals = info.deals,
+            .randomness = randomness,
+            .interactive_randomness = interactive_randomness,
+            .proof = info.proof,
+            .sealed_cid = info.sealed_cid,
+            .unsealed_cid = comm_d,
+        },
+        0));
     return outcome::success();
   }
 
@@ -776,6 +779,7 @@ namespace fc::vm::actor::builtin::miner {
                 .worker = worker,
                 .pending_worker_key = boost::none,
                 .peer_id = params.peer_id,
+                .addresses = params.addresses,
                 .seal_proof_type = seal_proof_type,
                 .sector_size = sector_size,
                 .window_post_partition_sectors = partition_sectors,
@@ -793,6 +797,7 @@ namespace fc::vm::actor::builtin::miner {
         .fault_epochs = {},
         .recoveries = {},
         .post_submissions = {},
+        .next_faults_deadline = {},
     };
     ipld->load(state);
     OUTCOME_TRY(runtime.commitState(state));
@@ -929,51 +934,6 @@ namespace fc::vm::actor::builtin::miner {
                        .seal_rand_epoch = precommit.info.seal_epoch,
                    }));
 
-    OUTCOME_TRY(deal_weight,
-                runtime.sendM<market::VerifyDealsOnSectorProveCommit>(
-                    kStorageMarketAddress,
-                    {
-                        .deals = precommit.info.deal_ids,
-                        .sector_expiry = precommit.info.expiration,
-                    },
-                    0));
-
-    OUTCOME_TRY(pledge,
-                runtime.sendM<storage_power::OnSectorProveCommit>(
-                    kStoragePowerAddress,
-                    {
-                        .weight =
-                            SectorStorageWeightDesc{
-                                .sector_size = state.info.sector_size,
-                                .duration = precommit.info.expiration - now,
-                                .deal_weight = deal_weight.deal_weight,
-                                .verified_deal_weight =
-                                    deal_weight.verified_deal_weight,
-                            },
-                    },
-                    0));
-
-    OUTCOME_TRY(new_vest, unlockVestedFunds(state, now));
-    OUTCOME_TRY(addPreCommitDeposit(state, -precommit.precommit_deposit));
-    OUTCOME_TRY(balance, runtime.getCurrentBalance());
-    VM_ASSERT(getAvailableBalance(state, balance) >= pledge);
-    OUTCOME_TRY(addLockedFunds(state, now, pledge));
-    OUTCOME_TRY(assertBalanceInvariants(state, balance));
-
-    OUTCOME_TRY(state.sectors.set(
-        precommit.info.sector,
-        SectorOnChainInfo{
-            .info = precommit.info,
-            .activation_epoch = now,
-            .deal_weight = deal_weight.deal_weight,
-            .verified_deal_weight = deal_weight.verified_deal_weight,
-        }));
-
-    OUTCOME_TRY(state.precommitted_sectors.remove(sector));
-    OUTCOME_TRY(addSectorExpirations(state, precommit.info.expiration, sector));
-    OUTCOME_TRY(addNewSectors(state, sector));
-    OUTCOME_TRY(runtime.commitState(state));
-    OUTCOME_TRY(notifyPledgeChanged(runtime, pledge - new_vest));
     return outcome::success();
   }
 
@@ -1146,6 +1106,61 @@ namespace fc::vm::actor::builtin::miner {
     return outcome::success();
   }
 
+  ACTOR_METHOD_IMPL(ConfirmSectorProofsValid) {
+    OUTCOME_TRY(runtime.validateImmediateCallerIs(kStoragePowerAddress));
+    auto now{runtime.getCurrentEpoch()};
+    OUTCOME_TRY(state, loadState(runtime));
+
+    for (auto sector : params.sectors) {
+      OUTCOME_TRY(precommit, state.precommitted_sectors.get(sector));
+
+      OUTCOME_TRY(deal_weight,
+                  runtime.sendM<market::VerifyDealsOnSectorProveCommit>(
+                      kStorageMarketAddress,
+                      {.deals = precommit.info.deal_ids,
+                       .sector_expiry = precommit.info.expiration},
+                      0));
+
+      OUTCOME_TRY(
+          pledge,
+          runtime.sendM<storage_power::OnSectorProveCommit>(
+              kStoragePowerAddress,
+              {.weight =
+                   SectorStorageWeightDesc{
+                       .sector_size = state.info.sector_size,
+                       .duration = precommit.info.expiration - now,
+                       .deal_weight = deal_weight.deal_weight,
+                       .verified_deal_weight = deal_weight.verified_deal_weight,
+                   }},
+              0));
+
+      OUTCOME_TRY(new_vest, unlockVestedFunds(state, now));
+      OUTCOME_TRY(addPreCommitDeposit(state, -precommit.precommit_deposit));
+      OUTCOME_TRY(balance, runtime.getCurrentBalance());
+      VM_ASSERT(getAvailableBalance(state, balance) >= pledge);
+      OUTCOME_TRY(addLockedFunds(state, now, pledge));
+      OUTCOME_TRY(assertBalanceInvariants(state, balance));
+
+      OUTCOME_TRY(state.sectors.set(
+          precommit.info.sector,
+          SectorOnChainInfo{
+              .info = precommit.info,
+              .activation_epoch = now,
+              .deal_weight = deal_weight.deal_weight,
+              .verified_deal_weight = deal_weight.verified_deal_weight,
+          }));
+
+      OUTCOME_TRY(state.precommitted_sectors.remove(sector));
+      OUTCOME_TRY(
+          addSectorExpirations(state, precommit.info.expiration, sector));
+      OUTCOME_TRY(addNewSectors(state, sector));
+      OUTCOME_TRY(notifyPledgeChanged(runtime, pledge - new_vest));
+    }
+
+    OUTCOME_TRY(runtime.commitState(state));
+    return outcome::success();
+  }
+
   const ActorExports exports{
       exportMethod<Construct>(),
       exportMethod<ControlAddresses>(),
@@ -1163,5 +1178,6 @@ namespace fc::vm::actor::builtin::miner {
       exportMethod<AddLockedFund>(),
       exportMethod<ReportConsensusFault>(),
       exportMethod<WithdrawBalance>(),
+      exportMethod<ConfirmSectorProofsValid>(),
   };
 }  // namespace fc::vm::actor::builtin::miner

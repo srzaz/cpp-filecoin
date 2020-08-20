@@ -343,7 +343,10 @@ namespace fc::vm::actor::builtin::market {
               if (slashed_next.second != kChainEpochUndefined) {
                 VM_ASSERT(slashed_next.second > now);
                 deal_state->last_updated_epoch = now;
-                OUTCOME_TRY(state.states.set(deal_id, *deal_state));
+                if (false) {
+                  // LOTUS-COMPAT: missing flush
+                  OUTCOME_TRY(state.states.set(deal_id, *deal_state));
+                }
                 next_updates[slashed_next.second].push_back(deal_id);
               }
             }
