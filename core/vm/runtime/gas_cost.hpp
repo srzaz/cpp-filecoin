@@ -65,8 +65,6 @@ namespace fc::vm::runtime {
    * Gas cost for deleting an actor.
    */
   inline static const GasAmount kDeleteActorGasCost{-kCreateActorExtraGasCost};
-
-  inline static const GasAmount kInitActorExecCost{100};
 }  // namespace fc::vm::runtime
 
 #endif  // CPP_FILECOIN_CORE_VM_RUNTIME_GAS_COST_HPP

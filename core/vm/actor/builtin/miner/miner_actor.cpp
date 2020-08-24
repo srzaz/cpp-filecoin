@@ -20,6 +20,8 @@ namespace fc::vm::actor::builtin::miner {
   using runtime::DomainSeparationTag;
   using storage_power::SectorTerminationType;
 
+  constexpr auto kStop{storage::amt::AmtError::kExpectedCID};
+
   outcome::result<void> burnFunds(Runtime &runtime, const TokenAmount &amount) {
     if (amount > 0) {
       OUTCOME_TRY(runtime.sendFunds(kBurntFundsActorAddress, amount));
@@ -115,14 +117,21 @@ namespace fc::vm::actor::builtin::miner {
   outcome::result<TokenAmount> unlockVestedFunds(State &state, ChainEpoch now) {
     TokenAmount unlocked{0};
     std::vector<ChainEpoch> deleted;
-    OUTCOME_TRY(state.vesting_funds.visit([&](auto epoch, auto &locked) {
-      // TODO: lotus stops iterations
-      if (static_cast<ChainEpoch>(epoch) < now) {
-        unlocked += locked;
-        deleted.push_back(epoch);
-      }
-      return outcome::success();
-    }));
+    OUTCOME_TRY(state.vesting_funds.amt.count());  // LOTUS-COMPAT: gas
+    auto _funds{state.vesting_funds};              // LOTUS-COMPAT: gas
+    auto _v{
+        _funds.visit([&](auto epoch, auto &locked) -> outcome::result<void> {
+          if (static_cast<ChainEpoch>(epoch) < now) {
+            unlocked += locked;
+            deleted.push_back(epoch);
+          } else {
+            return kStop;
+          }
+          return outcome::success();
+        })};
+    if (!_v && _v.error() != kStop) {
+      return _v.error();
+    }
     for (auto epoch : deleted) {
       OUTCOME_TRY(state.vesting_funds.remove(epoch));
     }
@@ -568,14 +577,20 @@ namespace fc::vm::actor::builtin::miner {
                                                   ChainEpoch epoch) {
     RleBitset result;
     std::vector<ChainEpoch> expired;
-    OUTCOME_TRY(state.sector_expirations.visit([&](auto expiry, auto &sectors) {
-      // TODO: lotus stops iterations
-      if (static_cast<ChainEpoch>(expiry) <= epoch) {
-        expired.push_back(expiry);
-        result.insert(sectors.begin(), sectors.end());
-      }
-      return outcome::success();
-    }));
+    auto _expirations{state.sector_expirations};  // LOTUS-COMPAT: gas
+    auto _v{_expirations.visit(
+        [&](auto expiry, auto &sectors) -> outcome::result<void> {
+          if (static_cast<ChainEpoch>(expiry) <= epoch) {
+            expired.push_back(expiry);
+            result.insert(sectors.begin(), sectors.end());
+          } else {
+            return kStop;
+          }
+          return outcome::success();
+        })};
+    if (!_v && _v.error() != kStop) {
+      return _v.error();
+    }
     for (auto expiry : expired) {
       OUTCOME_TRY(state.sector_expirations.remove(expiry));
     }
@@ -887,10 +902,11 @@ namespace fc::vm::actor::builtin::miner {
     VM_ASSERT(params.seal_epoch >= earliest);
     OUTCOME_TRY(state, assertCallerIsWorker(runtime));
     VM_ASSERT(params.registered_proof == state.info.seal_proof_type);
-    OUTCOME_TRY(already_precommited,
-                state.precommitted_sectors.has(params.sector));
+    auto _precommited{state.precommitted_sectors};  // LOTUS-COMPAT: gas
+    OUTCOME_TRY(already_precommited, _precommited.has(params.sector));
     VM_ASSERT(!already_precommited);
-    OUTCOME_TRY(already_commited, state.sectors.has(params.sector));
+    auto _commited{state.sectors};  // LOTUS-COMPAT: gas
+    OUTCOME_TRY(already_commited, _commited.has(params.sector));
     VM_ASSERT(!already_commited);
     VM_ASSERT((params.expiration + 1) % kWPoStProvingPeriod
               == state.proving_period_start % kWPoStProvingPeriod);

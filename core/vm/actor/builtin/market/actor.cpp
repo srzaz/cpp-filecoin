@@ -139,12 +139,17 @@ namespace fc::vm::actor::builtin::market {
                                          const Address &address,
                                          TokenAmount amount) {
     VM_ASSERT(amount >= 0);
-    OUTCOME_TRY(escrow, state.escrow_table.get(address));
-    OUTCOME_TRY(locked, state.locked_table.get(address));
+    auto _locked{state.locked_table};  // LOTUS-COMPAT: gas
+    OUTCOME_TRY(locked, _locked.get(address));
+    auto _escrow{state.escrow_table};  // LOTUS-COMPAT: gas
+    OUTCOME_TRY(escrow, _escrow.get(address));
+    _escrow = state.escrow_table;       // LOTUS-COMPAT: gas
+    OUTCOME_TRY(_escrow.get(address));  // LOTUS-COMPAT: gas
     if (locked + amount > escrow) {
       return VMExitCode::kMarketActorInsufficientFunds;
     }
     OUTCOME_TRY(state.locked_table.add(address, amount));
+    OUTCOME_TRY(Ipld::flush(state.locked_table));  // LOTUS-COMPAT: gas
     return outcome::success();
   }
 
@@ -306,10 +311,12 @@ namespace fc::vm::actor::builtin::market {
     OUTCOME_TRY(state, loadState(runtime));
     std::vector<PieceInfo> pieces;
     for (auto deal_id : params.deals) {
-      OUTCOME_TRY(deal, state.proposals.get(deal_id));
+      auto _proposals{state.proposals};  // LOTUS-COMPAT: gas
+      OUTCOME_TRY(deal, _proposals.get(deal_id));
       pieces.emplace_back(
           PieceInfo{.size = deal.piece_size, .cid = deal.piece_cid});
     }
+    OUTCOME_TRY(runtime.commitState(state));  // LOTUS-COMPAT: gas
     return runtime.computeUnsealedSectorCid(params.sector_type, pieces);
   }
 

@@ -25,7 +25,6 @@ namespace fc::vm::actor::builtin::init {
         && params.code != kMultisigCodeCid) {
       return VMExitCode::kErrForbidden;
     }
-    OUTCOME_TRY(runtime.chargeGas(runtime::kInitActorExecCost));
     OUTCOME_TRY(actor_address, runtime.newActorAddress());
     OUTCOME_TRY(init_actor, runtime.getCurrentActorStateCbor<InitActorState>());
     OUTCOME_TRY(id_address, init_actor.addActor(actor_address));
