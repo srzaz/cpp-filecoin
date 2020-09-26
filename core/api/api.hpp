@@ -63,6 +63,7 @@ namespace fc::api {
   using primitives::block::BlockTemplate;
   using primitives::block::BlockWithCids;
   using primitives::cid::Comm;
+  using primitives::piece::PaddedPieceSize;
   using primitives::sector::RegisteredProof;
   using primitives::sector::SectorInfo;
   using primitives::tipset::HeadChange;
@@ -274,6 +275,10 @@ namespace fc::api {
   };
 
 
+  struct DealCollateralBounds {
+    TokenAmount min, max;
+  };
+
   struct Api {
     API_METHOD(AuthNew, Buffer, const std::vector<std::string> &)
 
@@ -334,8 +339,7 @@ namespace fc::api {
                boost::optional<CID>,
                const Address &,
                const Address &,
-               const TokenAmount &,
-               const TipsetKey &)
+               const TokenAmount &)
 
     API_METHOD(MinerCreateBlock, BlockWithCids, const BlockTemplate &)
     API_METHOD(MinerGetBaseInfo,
@@ -355,6 +359,11 @@ namespace fc::api {
                InvocResult,
                const UnsignedMessage &,
                const TipsetKey &)
+    API_METHOD(StateDealProviderCollateralBounds,
+               DealCollateralBounds,
+               PaddedPieceSize,
+               bool,
+               const TipsetKey &)
     API_METHOD(StateListMessages,
                std::vector<CID>,
                const UnsignedMessage &,
@@ -372,6 +381,10 @@ namespace fc::api {
     API_METHOD(StateMarketDeals, MarketDealMap, const TipsetKey &)
     API_METHOD(StateLookupID, Address, const Address &, const TipsetKey &)
     API_METHOD(StateMarketStorageDeal, StorageDeal, DealId, const TipsetKey &)
+    API_METHOD(StateMinerActiveSectors,
+               std::vector<ChainSectorInfo>,
+               const Address &,
+               const TipsetKey &)
     API_METHOD(StateMinerDeadlines,
                Deadlines,
                const Address &,
@@ -408,7 +421,7 @@ namespace fc::api {
     API_METHOD(StateMinerInitialPledgeCollateral,
                TokenAmount,
                const Address &,
-               SectorNumber,
+               const SectorPreCommitInfo &,
                const TipsetKey &);
     API_METHOD(StateSectorPreCommitInfo,
                boost::optional<SectorPreCommitOnChainInfo>,

@@ -102,6 +102,7 @@ namespace fc::api {
     setup(rpc, api.NetAddrsListen);
     setup(rpc, api.StateAccountKey);
     setup(rpc, api.StateCall);
+    setup(rpc, api.StateDealProviderCollateralBounds);
     setup(rpc, api.StateListMessages);
     setup(rpc, api.StateGetActor);
     setup(rpc, api.StateReadState);
@@ -112,6 +113,7 @@ namespace fc::api {
     setup(rpc, api.StateMarketDeals);
     setup(rpc, api.StateLookupID);
     setup(rpc, api.StateMarketStorageDeal);
+    setup(rpc, api.StateMinerActiveSectors);
     setup(rpc, api.StateMinerDeadlines);
     setup(rpc, api.StateMinerFaults);
     setup(rpc, api.StateMinerInfo);

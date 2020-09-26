@@ -250,7 +250,7 @@ namespace fc::markets::storage::test {
           }};
 
       api->MarketEnsureAvailable = {
-          [](auto, auto, auto, auto) -> outcome::result<boost::optional<CID>> {
+          [](auto, auto, auto) -> outcome::result<boost::optional<CID>> {
             // funds ensured
             return boost::none;
           }};

@@ -28,6 +28,7 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/filecoin-project/specs-actors/actors/runtime"
 	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
+	"github.com/filecoin-project/specs-actors/actors/util/smoothing"
 	"github.com/ipfs/go-cid"
 	"github.com/whyrusleeping/cbor-gen"
 	"reflect"
@@ -473,6 +474,15 @@ func cgoActorsConfig(raw C.Raw) C.Raw {
 		miner.SupportedProofTypes[abi.RegisteredSealProof(arg.int())] = struct{}{}
 	}
 	return cgoRet(nil)
+}
+
+//export cgoActorsInitialPledgeForPower
+func cgoActorsInitialPledgeForPower(raw C.Raw) C.Raw {
+	arg := cgoArgCbor(raw)
+	var a, b, c, f big.Int
+	var d, e smoothing.FilterEstimate
+	a, b, c, d.PositionEstimate, d.VelocityEstimate, e.PositionEstimate, e.VelocityEstimate, f = arg.big(), arg.big(), arg.big(), arg.big(), arg.big(), arg.big(), arg.big(), arg.big()
+	return CborOut().big(miner.InitialPledgeForPower(a, b, c, &d, &e, f)).ret()
 }
 
 func main() {}

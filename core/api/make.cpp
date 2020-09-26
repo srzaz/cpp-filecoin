@@ -18,7 +18,9 @@
 #include "vm/actor/builtin/init/init_actor.hpp"
 #include "vm/actor/builtin/market/actor.hpp"
 #include "vm/actor/builtin/miner/types.hpp"
+#include "vm/actor/builtin/reward/reward_actor.hpp"
 #include "vm/actor/builtin/storage_power/storage_power_actor_state.hpp"
+#include "vm/actor/cgo/actors.hpp"
 #include "vm/actor/impl/invoker_impl.hpp"
 #include "vm/message/impl/message_signer_impl.hpp"
 #include "vm/runtime/env.hpp"
@@ -32,6 +34,7 @@
 namespace fc::api {
   using primitives::kChainEpochUndefined;
   using vm::actor::kInitAddress;
+  using vm::actor::kRewardAddress;
   using vm::actor::kStorageMarketAddress;
   using vm::actor::kStoragePowerAddress;
   using vm::actor::builtin::account::AccountActorState;
@@ -52,6 +55,7 @@ namespace fc::api {
   using vm::state::StateTreeImpl;
   using connection_t = boost::signals2::connection;
   using MarketActorState = vm::actor::builtin::market::State;
+  using RewardActorState = vm::actor::builtin::reward::State;
 
   // TODO: reuse for block validation
   inline bool minerHasMinPower(const StoragePower &claim_qa,
@@ -112,10 +116,35 @@ namespace fc::api {
       return state_tree.state<InitActorState>(kInitAddress);
     }
 
+    auto rewardState() {
+      return state_tree.state<RewardActorState>(kRewardAddress);
+    }
+
     outcome::result<Address> accountKey(const Address &id) {
       // TODO(turuslan): error if not account
       OUTCOME_TRY(state, state_tree.state<AccountActorState>(id));
       return state.address;
+    }
+
+    outcome::result<InvocResult> call(const UnsignedMessage &message) {
+      auto env{std::make_shared<Env>(
+          std::make_shared<InvokerImpl>(), state_tree.getStore(), tipset)};
+      InvocResult result;
+      result.message = message;
+      if (result.message.gas_limit == 0) {
+        result.message.gas_limit = kBlockGasLimit;
+      }
+      if (auto _result{env->applyImplicitMessage(result.message)}) {
+        result.receipt = {VMExitCode::kOk, _result.value(), 0};
+      } else {
+        auto &error{_result.error()};
+        if (isVMExitCode(error)) {
+          result.receipt = {VMExitCode{error.value()}, {}, 0};
+        } else {
+          return error;
+        }
+      }
+      return result;
     }
   };
 
@@ -432,8 +461,11 @@ namespace fc::api {
                                  -> outcome::result<SignedMessage> {
           OUTCOME_TRY(context, tipsetContext({}));
           if (message.from.isId()) {
-            OUTCOME_TRYA(message.from, context.accountKey(message.from));
+            OUTCOME_TRYA(message.from,
+                         vm::runtime::resolveKey(
+                             context.state_tree, message.from, true));
           }
+          OUTCOME_TRY(mpool->estimate(message));
           OUTCOME_TRYA(message.nonce, mpool->nonce(message.from));
           OUTCOME_TRY(signed_message,
                       vm::message::MessageSignerImpl{key_store}.sign(
@@ -465,26 +497,10 @@ namespace fc::api {
         .StateCall = {[=](auto &message,
                           auto &tipset_key) -> outcome::result<InvocResult> {
           OUTCOME_TRY(context, tipsetContext(tipset_key));
-          auto env = std::make_shared<Env>(
-              std::make_shared<InvokerImpl>(), ipld, context.tipset);
-          InvocResult result;
-          result.message = message;
-          auto maybe_result = env->applyImplicitMessage(message);
-          if (maybe_result) {
-            result.receipt = {VMExitCode::kOk, maybe_result.value(), 0};
-          } else {
-            if (isVMExitCode(maybe_result.error())) {
-              auto ret_code =
-                  normalizeVMExitCode(VMExitCode{maybe_result.error().value()});
-              BOOST_ASSERT_MSG(ret_code,
-                               "c++ actor code returned unknown error");
-              result.receipt = {*ret_code, {}, 0};
-            } else {
-              return maybe_result.error();
-            }
-          }
-          return result;
+          return context.call(message);
         }},
+        // TODO(turuslan): FIL-165 implement method
+        .StateDealProviderCollateralBounds = {},
         .StateListMessages = {[=](auto &match, auto &tipset_key, auto to_height)
                                   -> outcome::result<std::vector<CID>> {
           OUTCOME_TRY(context, tipsetContext(tipset_key));
@@ -634,6 +650,30 @@ namespace fc::api {
           }
           return StorageDeal{deal, *deal_state};
         }},
+        .StateMinerActiveSectors = [=](auto &miner, auto &tipset_key)
+            -> outcome::result<std::vector<ChainSectorInfo>> {
+          OUTCOME_TRY(context, tipsetContext(tipset_key));
+          OUTCOME_TRY(state, context.minerState(miner));
+          RleBitset _sectors;
+          OUTCOME_TRY(deadlines, state.deadlines.get());
+          for (auto &_deadline : deadlines.due) {
+            OUTCOME_TRY(deadline, _deadline.get());
+            OUTCOME_TRY(deadline.partitions.visit([&](auto, auto &part) {
+              for (auto sector : part.sectors) {
+                if (!part.terminated.has(sector) && !part.faults.has(sector)) {
+                  _sectors.insert(sector);
+                }
+              }
+              return outcome::success();
+            }));
+          }
+          std::vector<ChainSectorInfo> sectors;
+          for (auto _sector : _sectors) {
+            OUTCOME_TRY(sector, state.sectors.get(_sector));
+            sectors.push_back({std::move(sector), _sector});
+          }
+          return sectors;
+        },
         .StateMinerDeadlines = {[=](auto &address, auto &tipset_key)
                                     -> outcome::result<Deadlines> {
           OUTCOME_TRY(context, tipsetContext(tipset_key));
@@ -732,12 +772,46 @@ namespace fc::api {
               return outcome::success();
             }},
         .StateMinerInitialPledgeCollateral =
-            {[=](auto address,
-                 auto sector_number,
-                 auto tipset_key) -> outcome::result<TokenAmount> {
-              // TODO(artyom-yurin): FIL-165 implement method
-              return outcome::success();
-            }},
+            [=](auto &address,
+                auto &precommit,
+                auto &tipset_key) -> outcome::result<TokenAmount> {
+          OUTCOME_TRY(context, tipsetContext(tipset_key));
+          using Verify =
+              vm::actor::builtin::market::VerifyDealsOnSectorProveCommit;
+          Verify::Result weights;
+          if (!precommit.deal_ids.empty()) {
+            UnsignedMessage message;
+            message.from = address;
+            message.to = kStorageMarketAddress;
+            message.method = Verify::Number;
+            OUTCOME_TRYA(message.params,
+                         codec::cbor::encode(Verify::Params{
+                             precommit.deal_ids, precommit.expiration, {}}));
+            OUTCOME_TRY(result, context.call(message));
+            OUTCOME_TRYA(weights,
+                         codec::cbor::decode<Verify::Result>(
+                             result.receipt.return_value));
+          }
+          OUTCOME_TRY(miner, context.minerState(address));
+          OUTCOME_TRY(minfo, miner.info.get());
+          OUTCOME_TRY(power, context.powerState());
+          OUTCOME_TRY(reward, context.rewardState());
+          auto circ{0};  // TODO: TotalFilCircSupply
+          auto pledge{vm::actor::cgo::initialPledgeForPower(
+              vm::actor::builtin::storage_power::qaPowerForWeight(
+                  {minfo.sector_size,
+                   (EpochDuration)(precommit.expiration
+                                   - context.tipset.height),
+                   weights.deal_weight,
+                   weights.verified_deal_weight}),
+              reward.this_epoch_baseline_power,
+              power.this_epoch_pledge,
+              reward.this_epoch_reward_smoothed,
+              power.this_epoch_qa_power_smoothed,
+              circ)};
+          // TODO: const
+          return bigdiv(pledge * 110, 100);
+        },
         .StateSectorPreCommitInfo =
             {[=](auto address, auto sector_number, auto tipset_key)
                  -> outcome::result<

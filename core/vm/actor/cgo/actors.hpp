@@ -10,6 +10,8 @@
 
 namespace fc::vm::actor::cgo {
   using message::UnsignedMessage;
+  using primitives::BigInt;
+  using primitives::FilterEstimate;
   using primitives::StoragePower;
   using primitives::sector::RegisteredProof;
   using runtime::Execution;
@@ -23,4 +25,11 @@ namespace fc::vm::actor::cgo {
                                  const CID &code,
                                  size_t method,
                                  BytesIn params);
+
+  BigInt initialPledgeForPower(const BigInt &,
+                               const BigInt &,
+                               const BigInt &,
+                               const FilterEstimate &,
+                               const FilterEstimate &,
+                               const BigInt &);
 }  // namespace fc::vm::actor::cgo

@@ -223,6 +223,10 @@ namespace fc::api {
       v = std::move(cid);
     }
 
+    DECODE(PaddedPieceSize) {
+      v = decode<uint64_t>(j);
+    }
+
     ENCODE(PeerId) {
       return encode(v.toBase58());
     }
@@ -666,7 +670,7 @@ namespace fc::api {
 
     ENCODE(SectorPreCommitInfo) {
       Value j{rapidjson::kObjectType};
-      Set(j, "RegisteredProof", common::to_int(v.registered_proof));
+      Set(j, "SealProof", common::to_int(v.registered_proof));
       Set(j, "SectorNumber", v.sector);
       Set(j, "SealedCID", v.sealed_cid);
       Set(j, "SealRandEpoch", v.seal_epoch);
@@ -676,7 +680,7 @@ namespace fc::api {
     }
 
     DECODE(SectorPreCommitInfo) {
-      decodeEnum(v.registered_proof, Get(j, "RegisteredProof"));
+      decodeEnum(v.registered_proof, Get(j, "SealProof"));
       decode(v.sector, Get(j, "SectorNumber"));
       decode(v.sealed_cid, Get(j, "SealedCID"));
       decode(v.seal_epoch, Get(j, "SealRandEpoch"));
@@ -865,6 +869,13 @@ namespace fc::api {
       Value j{rapidjson::kObjectType};
       Set(j, "Ask", v.ask);
       Set(j, "Signature", v.signature);
+      return j;
+    }
+
+    ENCODE(DealCollateralBounds) {
+      Value j{rapidjson::kObjectType};
+      Set(j, "Min", v.min);
+      Set(j, "Max", v.max);
       return j;
     }
 

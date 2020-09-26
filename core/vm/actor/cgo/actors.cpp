@@ -80,6 +80,18 @@ namespace fc::vm::actor::cgo {
     return ret.get<Buffer>();
   }
 
+  BigInt initialPledgeForPower(const BigInt &a,
+                               const BigInt &b,
+                               const BigInt &c,
+                               const FilterEstimate &d,
+                               const FilterEstimate &e,
+                               const BigInt &f) {
+    return cgoCall<cgoActorsInitialPledgeForPower>(
+               CborEncodeStream{} << a << b << c << d.position << d.velocity
+                                  << e.position << e.velocity << f)
+        .get<BigInt>();
+  }
+
   template <typename T>
   inline auto chargeFatal(CborEncodeStream &ret, const outcome::result<T> &r) {
     if (!r) {
