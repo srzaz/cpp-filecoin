@@ -62,3 +62,10 @@ add_library(todo_error
 target_link_libraries(todo_error
     outcome
     )
+
+add_library(file
+    file.cpp
+    )
+target_link_libraries(file
+    buffer
+    )
